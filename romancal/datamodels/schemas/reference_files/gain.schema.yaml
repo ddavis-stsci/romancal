@@ -13,3 +13,4 @@ allOf:
       ndim: 2
       datatype: float32
       tag: tag:stsci.edu:asdf/core/ndarray-1.0.0
+- $ref: reference_electronics_requirements.schema
