@@ -1,8 +1,19 @@
 0.4.0 (unreleased)
 =======
+
 general
 -------
+
+- Locked romancal library dependency version RDM (0.1.2). [# 246]
+
+
+documentation
+-------------
+
+- Updated README weblinks.[#241]
+
 - Added documentation for dark current reference files. [#232]
+
 - Added documentation for gain step. [#231]
 - Added documentation for read noise reference files. [#TBD]
 
@@ -11,11 +22,12 @@ general
 
 general
 -------
-- Added grism to the CRDS tests [# 225]
 
+- Added grism to the CRDS tests [# 225]
 
 0.3.0 (2021-05-28)
 =======
+
 datamodels
 ----------
 
@@ -34,7 +46,7 @@ general
 
 - Update setup for more strict PEP8 checking [#176]
 
-- Added documentation for mask files. [#181]
+- Added documentation for rmask files. [#181]
 
 datamodels
 ----------
