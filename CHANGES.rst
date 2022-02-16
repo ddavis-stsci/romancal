@@ -15,26 +15,28 @@ general
 Documentation
 -------------
 
- - Add the suffixes used in the pipeline if steps.<step>.save_results is set [#415]
+- Add description of the info and search methods for roman datamodels [#]
 
- - Update references_general.rst to remove TBD and add DQ flag information. [#396]
+- Add the suffixes used in the pipeline if steps.<step>.save_results is set [#415]
 
- - Initial romancal documentation for using datamodels. [#391]
+- Update references_general.rst to remove TBD and add DQ flag information. [#396]
+
+- Initial romancal documentation for using datamodels. [#391]
 
 dark
 ----
 
- - Updated dark current step to use stcal. Created tests for the updated step. [#420]
+- Updated dark current step to use stcal. Created tests for the updated step. [#420]
 
- - Fixed dark subtraction output crash. [#423]
+- Fixed dark subtraction output crash. [#423]
 
 
 jump
 ----
 
- - Update Jump regression test parameters to reduce test time [#411]
+- Update Jump regression test parameters to reduce test time [#411]
 
- - Update code to suppress output from the jump step if not requested [#399]
+- Update code to suppress output from the jump step if not requested [#399]
 
 Pipeline
 ________
