@@ -39,18 +39,17 @@ def create_distortion():
     dist.coordinate_distortion_transform.bounding_box = wcs_bbox_from_shape(model.data.shape)
     distortions.append(dist)
 
-    for distortion in distortions:
-        distortion.meta['instrument']['name'] = 'WFI'
-        distortion.meta['instrument']['detector'] = 'WFI01'
-        distortion.meta['instrument']['optical_element'] = 'F158'
-
     return distortions
 
 
 @pytest.mark.parametrize("distortion", create_distortion())
-def test_wcs(distortion):
+def test_wcs(tmpdir, distortion):
+    file_name = str(tmpdir / 'distortion.asdf')
+    dist = rdm.DistortionRefModel(distortion)
+    dist.save(file_name)
+
     l2im = create_image()
-    l2_wcs = AssignWcsStep.call(l2im, override_distortion=distortion)
+    l2_wcs = AssignWcsStep.call(l2im, override_distortion=file_name)
 
     assert l2_wcs.meta.wcs is not None
     assert l2_wcs.meta.cal_step.assign_wcs == 'COMPLETE'
