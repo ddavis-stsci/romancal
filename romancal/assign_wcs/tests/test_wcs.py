@@ -1,3 +1,4 @@
+from ast import Assign
 import pytest
 
 import numpy as np
@@ -5,7 +6,7 @@ from numpy.testing import assert_allclose
 
 from gwcs.wcstools import grid_from_bounding_box
 
-from romancal.assign_wcs.assign_wcs_step import load_wcs
+from romancal.assign_wcs.assign_wcs_step import AssignWcsStep
 from roman_datamodels import datamodels as rdm
 from roman_datamodels.testing import utils as testutil
 
@@ -14,12 +15,18 @@ from romancal.assign_wcs.utils import wcs_bbox_from_shape
 
 def create_image():
     l2 = testutil.mk_level2_image()
+
+    l2.meta.instrument.name = 'WFI'
+    l2.meta.instrument.detector = 'WFI01'
+    l2.meta.instrument.optical_element = 'F158'
+
     l2.meta.wcsinfo.v2_ref = -503
     l2.meta.wcsinfo.v3_ref = -318
     l2.meta.wcsinfo.ra_ref = 156
     l2.meta.wcsinfo.dec_ref = 54.2
     l2.meta.wcsinfo.vparity = -1
     l2.meta.wcsinfo.roll_ref = 0.15
+
     l2im = rdm.ImageModel(l2)
     return l2im
 
@@ -32,13 +39,18 @@ def create_distortion():
     dist.coordinate_distortion_transform.bounding_box = wcs_bbox_from_shape(model.data.shape)
     distortions.append(dist)
 
+    for distortion in distortions:
+        distortion.meta['instrument']['name'] = 'WFI'
+        distortion.meta['instrument']['detector'] = 'WFI01'
+        distortion.meta['instrument']['optical_element'] = 'F158'
+
     return distortions
 
 
 @pytest.mark.parametrize("distortion", create_distortion())
 def test_wcs(distortion):
     l2im = create_image()
-    l2_wcs = load_wcs(l2im, {'distortion': distortion})
+    l2_wcs = AssignWcsStep.call(l2im, override_distortion=distortion)
 
     assert l2_wcs.meta.wcs is not None
     assert l2_wcs.meta.cal_step.assign_wcs == 'COMPLETE'
