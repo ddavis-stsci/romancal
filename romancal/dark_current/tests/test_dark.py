@@ -21,7 +21,8 @@ from roman_datamodels.testing import utils as testutil
 )
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
-    reason="Roman CRDS servers are not currently available outside the internal network"
+    reason="Roman CRDS servers are not currently available outside\
+           the internal network"
 )
 def test_dark_step_interface(instrument, exptype):
     """Test that the basic inferface works for data requiring a DARK reffile"""
@@ -30,7 +31,8 @@ def test_dark_step_interface(instrument, exptype):
     shape = (2, 20, 20)
 
     # Create test ramp and dark models
-    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument, exptype)
+    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument,
+                                                     exptype)
 
     # Perform Dark Current subtraction step
     result = DarkCurrentStep.call(ramp_model, override_dark=darkref_model)
@@ -58,7 +60,8 @@ def test_dark_step_interface(instrument, exptype):
 )
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
-    reason="Roman CRDS servers are not currently available outside the internal network"
+    reason="Roman CRDS servers are not currently available outside\
+            the internal network"
 )
 def test_dark_step_subtraction(instrument, exptype):
     """Test that the values in a dark reference file are properly subtracted"""
@@ -67,7 +70,8 @@ def test_dark_step_subtraction(instrument, exptype):
     shape = (2, 20, 20)
 
     # Create test ramp and dark models
-    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument, exptype)
+    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument,
+                                                     exptype)
 
     # populate data array of science cube
     for i in range(0, 20):
@@ -77,11 +81,15 @@ def test_dark_step_subtraction(instrument, exptype):
     # Perform Dark Current subtraction step
     result = DarkCurrentStep.call(ramp_model, override_dark=darkref_model)
 
-    # check that the dark file is subtracted frame by frame from the science data
+    # check that the dark file is subtracted frame by frame from the
+    # science data
     diff = ramp_model.data - darkref_model.data
 
-    # test that the output data file is equal to the difference found when subtracting reffile from sci file
-    np.testing.assert_array_equal(result.data, diff, err_msg='dark file should be subtracted from sci file ')
+    # test that the output data file is equal to the difference found when
+    # subtracting reffile from sci file
+    np.testing.assert_array_equal(result.data, diff,
+                                  err_msg='dark file should be subtracted\
+                                  from the sci file ')
 
 
 @pytest.mark.parametrize(
@@ -92,7 +100,8 @@ def test_dark_step_subtraction(instrument, exptype):
 )
 @pytest.mark.skipif(
     os.environ.get("CI") == "true",
-    reason="Roman CRDS servers are not currently available outside the internal network"
+    reason="Roman CRDS servers are not currently available outside\
+            the internal network"
 )
 def test_dark_step_output_dark_file(tmpdir, instrument, exptype):
     """Test that the the step can output a proper (optional) dark file"""
@@ -102,10 +111,12 @@ def test_dark_step_output_dark_file(tmpdir, instrument, exptype):
     shape = (2, 20, 20)
 
     # Create test ramp and dark models
-    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument, exptype)
+    ramp_model, darkref_model = create_ramp_and_dark(shape, instrument,
+                                                     exptype)
 
     # Perform Dark Current subtraction step
-    DarkCurrentStep.call(ramp_model, override_dark=darkref_model, dark_output=path)
+    DarkCurrentStep.call(ramp_model, override_dark=darkref_model,
+                         dark_output=path)
 
     # Open dark file
     dark_out_file_model = rdm.open(path)
