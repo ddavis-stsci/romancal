@@ -1,5 +1,7 @@
 #! /usr/bin/env python
 
+from memory_profiler import profile
+
 import roman_datamodels as rdm
 from roman_datamodels.datamodels import SaturationRefModel
 from romancal.stpipe import RomanStep
@@ -16,6 +18,7 @@ class SaturationStep(RomanStep):
 
     reference_file_types = ['saturation']
 
+    @profile
     def process(self, input):
 
         # Open the input data model

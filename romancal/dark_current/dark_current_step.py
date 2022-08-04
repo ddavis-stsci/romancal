@@ -1,6 +1,8 @@
 #! /usr/bin/env python
 
 import numpy as np
+from memory_profiler import profile
+
 from romancal.stpipe import RomanStep
 from roman_datamodels import datamodels as rdd
 from stcal.dark_current import dark_sub
@@ -22,6 +24,7 @@ class DarkCurrentStep(RomanStep):
 
     reference_file_types = ['dark']
 
+    @profile
     def process(self, input):
 
         # Open the input data model

@@ -2,6 +2,8 @@
 Flat-field a science image
 """
 
+from memory_profiler import profile
+
 from ..stpipe import RomanStep
 from . import flat_field
 import roman_datamodels as rdm
@@ -15,6 +17,7 @@ class FlatFieldStep(RomanStep):
 
     reference_file_types = ["flat"]
 
+    @profile
     def process(self, step_input):
 
         input_model = rdm.open(step_input)

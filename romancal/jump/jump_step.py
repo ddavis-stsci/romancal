@@ -5,6 +5,7 @@ Detect jumps in a science image
 from roman_datamodels import datamodels as rdd
 import numpy as np
 import time
+from memory_profiler import profile
 
 from romancal.stpipe import RomanStep
 from romancal.lib import dqflags
@@ -36,6 +37,7 @@ class JumpStep(RomanStep):
 
     reference_file_types = ['gain', 'readnoise']
 
+    @profile
     def process(self, input):
 
         # Open input as a Roman DataModel (single integration; 3D arrays)

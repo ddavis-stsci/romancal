@@ -3,6 +3,7 @@ from os.path import basename
 import logging
 
 import numpy as np
+from memory_profiler import profile
 from roman_datamodels import datamodels as rdd
 from ..stpipe import RomanPipeline
 from romancal.lib.basic_utils import is_fully_saturated
@@ -62,6 +63,8 @@ class ExposurePipeline(RomanPipeline):
         log.info('Starting Roman exposure calibration pipeline ...')
         if isinstance(input, str):
             input_filename = basename(input)
+        else:
+            input_filename = input.meta.filename
 
         # open the input file
         input = rdd.open(input)

@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 
 import numpy as np
+from memory_profiler import profile
 
 from romancal.stpipe import RomanStep
 from romancal.dq_init import dq_initialization
@@ -25,6 +26,7 @@ class DQInitStep(RomanStep):
 
     reference_file_types = ['mask']
 
+    @profile
     def process(self, input):
         """Perform the dq_init calibration step
 

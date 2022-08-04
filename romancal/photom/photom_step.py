@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 
+from memory_profiler import profile
 from romancal.stpipe import RomanStep
 from romancal.photom import photom
 import roman_datamodels as rdm
@@ -15,6 +16,7 @@ class PhotomStep(RomanStep):
 
     reference_file_types = ['photom']
 
+    @profile
     def process(self, input):
         """Perform the photometric calibration step
 

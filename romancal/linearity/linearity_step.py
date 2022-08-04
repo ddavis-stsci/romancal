@@ -5,6 +5,7 @@ Apply linearity correction to a science image
 from roman_datamodels import datamodels as rdd
 import roman_datamodels as rdm
 import numpy as np
+from memory_profiler import profile
 
 from romancal.stpipe import RomanStep
 from romancal.lib import dqflags
@@ -21,6 +22,7 @@ class LinearityStep(RomanStep):
 
     reference_file_types = ['linearity']
 
+    @profile
     def process(self, input):
 
         # Open the input data model

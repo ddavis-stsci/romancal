@@ -2,6 +2,7 @@
 #
 import logging
 import numpy as np
+from memory_profiler import profile
 
 from romancal.stpipe import RomanStep
 from romancal.lib import dqflags
@@ -136,6 +137,7 @@ class RampFitStep(RomanStep):
 
     reference_file_types = ['readnoise', 'gain']
 
+    @profile
     def process(self, input):
         with rdd.open(input, mode='rw') as input_model:
             max_cores = self.maximum_cores
