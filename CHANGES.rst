@@ -26,6 +26,9 @@ source_detection
 
 - Small bug fix to ensure that output catalogs are not attached to the file when save_catalogs=False [#684]
 
+skymatch
+--------
+- Added SkyMatchStep to pipeline [#687]
 
 0.10.0 (2023-02-21)
 ===================
