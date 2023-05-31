@@ -16,6 +16,10 @@ skymatch
 --------
 - Added SkyMatchStep to pipeline [#687]
 
+reference pixel
+---------------
+
+- Add initial reference pixel correction step implementation. [#704]
 
 general
 -------
@@ -26,7 +30,6 @@ general
 - Move ``is_assocation`` from ``roman_datamodels`` to ``romancal``. [#719]
 
 - Update ``romancal`` to use altered API for ``maker_utils``. [#717]
-
 
 0.11.0 (2023-05-31)
 ===================
