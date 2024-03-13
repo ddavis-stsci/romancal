@@ -11,6 +11,8 @@ general
 
 - Update the ``dqflags`` to use the ones stored in ``roman_datamodels`` [#1099]
 
+- Update the high level pipeline to use updates in Outlier_detection and tweakreg [#1143]
+
 documentation
 -------------
 
