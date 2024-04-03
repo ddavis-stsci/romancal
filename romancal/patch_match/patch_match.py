@@ -6,20 +6,22 @@ Currently this assumes that the sky projected borders of all images are straight
 
 import os
 import os.path
-import numpy as np
+
 import asdf
-import spherical_geometry.vector as sgv
-import spherical_geometry.polygon as sgp
 import gwcs.wcs as wcs
+import numpy as np
+import spherical_geometry.polygon as sgp
+import spherical_geometry.vector as sgv
 from matplotlib import pyplot as plt
 
-RAD_TO_ARCSEC = 180. / np.pi * 3600.
+RAD_TO_ARCSEC = 180.0 / np.pi * 3600.0
 
 plt.ion()
 
 PATCH_TABLE = None
 
 print(os.environ)
+
 
 def load_patch_table(tablepath=None):
     """
@@ -29,12 +31,12 @@ def load_patch_table(tablepath=None):
     global PATCH_TABLE
     if tablepath is None:
         try:
-            tablepath = os.environ['PATCH_TABLE_PATH']
+            tablepath = os.environ["PATCH_TABLE_PATH"]
         except KeyError:
             raise KeyError("PATCH_TABLE_PATH environmental variable not found")
     try:
         with asdf.open(tablepath) as af:
-            PATCH_TABLE = af.tree['patches'].copy()
+            PATCH_TABLE = af.tree["patches"].copy()
     except FileNotFoundError:
         raise FileNotFoundError("Specified patch table file path not found")
 
@@ -54,6 +56,7 @@ def image_coords_to_vec(image_corners):
     # Convert all celestial coordinates to cartesion coordinates.
     vec_im_corners = np.array(sgv.lonlat_to_vector(image_corners[0], image_corners[1]))
     return vec_im_corners
+
 
 def find_patch_matches(image_corners, image_shape=None):
     """Find patches that the image overlaps with
@@ -81,13 +84,16 @@ def find_patch_matches(image_corners, image_shape=None):
         iwcs = image_corners
         # Now must find size of correspinding image, with three possible
         # sources of that information.
-        if ((not hasattr(iwcs, "bounding_box") or iwcs.bounding_box is None)
-             and (not hasattr(iwcs, "pixel_shape") or iwcs.pixel_shape is None)
-             and image_shape is None):
+        if (
+            (not hasattr(iwcs, "bounding_box") or iwcs.bounding_box is None)
+            and (not hasattr(iwcs, "pixel_shape") or iwcs.pixel_shape is None)
+            and image_shape is None
+        ):
             raise ValueError(
                 "Use of a wcs object requires at least one of the bounding_box"
                 " or pixel_shape attributes be set to the image shape or that the"
-                "image_shape argument be set")
+                "image_shape argument be set"
+            )
         if image_shape is not None:
             pass
         else:
@@ -99,12 +105,14 @@ def find_patch_matches(image_corners, image_shape=None):
             elif hasattr(iwcs, "pixel_shape") and iwcs.pixel_shape is not None:
                 image_shape = iwcs.pixel_shape
         # Compute the image corners ra, dec from the wcs
-        (cxm, cxp), (cym, cyp) = ((-0.5, image_shape[1] - 0.5),
-                                  (-0.5, image_shape[0] - 0.5))
+        (cxm, cxp), (cym, cyp) = (
+            (-0.5, image_shape[1] - 0.5),
+            (-0.5, image_shape[0] - 0.5),
+        )
         image_corners = (iwcs(cxp, cyp), iwcs(cxm, cyp), iwcs(cxm, cym), iwcs(cxp, cym))
     ptab = PATCH_TABLE
-    ra = ptab[:]['ra_center']
-    dec = ptab[:]['dec_center']
+    ra = ptab[:]["ra_center"]
+    dec = ptab[:]["dec_center"]
     # # Convert all celestial coordinates to cartesion coordinates.
     vec_centers = np.array(sgv.lonlat_to_vector(ra, dec)).transpose()
     # # Organize corners into two ra, dec lists
@@ -120,14 +128,14 @@ def find_patch_matches(image_corners, image_shape=None):
     ncandidates = len(match[0])
     # Now see which of these that are close actually overlap the supplied image.
     # (Is it necessary to check that the corners are in a sensible order?)
-    mra1 = ptab[match]['ra_corn1']
-    mra2 = ptab[match]['ra_corn2']
-    mra3 = ptab[match]['ra_corn3']
-    mra4 = ptab[match]['ra_corn4']
-    mdec1 = ptab[match]['dec_corn1']
-    mdec2 = ptab[match]['dec_corn2']
-    mdec3 = ptab[match]['dec_corn3']
-    mdec4 = ptab[match]['dec_corn4']
+    mra1 = ptab[match]["ra_corn1"]
+    mra2 = ptab[match]["ra_corn2"]
+    mra3 = ptab[match]["ra_corn3"]
+    mra4 = ptab[match]["ra_corn4"]
+    mdec1 = ptab[match]["dec_corn1"]
+    mdec2 = ptab[match]["dec_corn2"]
+    mdec3 = ptab[match]["dec_corn3"]
+    mdec4 = ptab[match]["dec_corn4"]
     mcenters = vec_centers[match]
     mra = np.vstack([mra1, mra2, mra3, mra4, mra1])
     mdec = np.vstack([mdec1, mdec2, mdec3, mdec4, mdec1])
@@ -148,25 +156,27 @@ def find_patch_matches(image_corners, image_shape=None):
             realmatch.append(i)
     return match[0][realmatch], match[0]
 
+
 def get_corners(patch):
     """
     Construct a the vertex coordinates for a patch from a patch definition suitable
     for plotting the defined region (x coordinates, y coordinates).
     """
     p = patch
-    corners = ((p['dec_corn1'],
-                p['dec_corn2'],
-                p['dec_corn3'],
-                p['dec_corn4'],
-                p['dec_corn1']),
-               (p['ra_corn1'],
-                p['ra_corn2'],
-                p['ra_corn3'],
-                p['ra_corn4'],
-                p['ra_corn1']))
+    corners = (
+        (
+            p["dec_corn1"],
+            p["dec_corn2"],
+            p["dec_corn3"],
+            p["dec_corn4"],
+            p["dec_corn1"],
+        ),
+        (p["ra_corn1"], p["ra_corn2"], p["ra_corn3"], p["ra_corn4"], p["ra_corn1"]),
+    )
     corners = np.array(corners)
     vec_corners = sgv.lonlat_to_vector(corners[0], corners[1])
     return vec_corners
+
 
 def find_closest_tangent_point(patches, image_corners):
     """
@@ -179,18 +189,22 @@ def find_closest_tangent_point(patches, image_corners):
     vec_im_corners = image_coords_to_vec(image_corners)
     im_center = np.array(normalize_vector(vec_im_corners.mean(axis=1)))
     tangent_point_set = set()
-    patch_tangent_points = [(patch['dec_projection_center'],
-                             patch['ra_projection_center'])
-        for patch in patches]
+    patch_tangent_points = [
+        (patch["dec_projection_center"], patch["ra_projection_center"])
+        for patch in patches
+    ]
     for tangent_point in patch_tangent_points:
         tangent_point_set.add(tangent_point)
     unique_tangent_points = list(tangent_point_set)
     # Compute distance for each tangent point from im_center
-    dist = [((im_center - np.array(sgv.lonlat_to_vector(*tangent_point)))**2).sum()
-           for tangent_point in unique_tangent_points]
+    dist = [
+        ((im_center - np.array(sgv.lonlat_to_vector(*tangent_point))) ** 2).sum()
+        for tangent_point in unique_tangent_points
+    ]
     sorted_dist_indices = sorted(zip(dist, range(len(dist))))
-    sorted_tangent_points = [unique_tangent_points[sorted_dist[1]]
-           for sorted_dist in sorted_dist_indices]
+    sorted_tangent_points = [
+        unique_tangent_points[sorted_dist[1]] for sorted_dist in sorted_dist_indices
+    ]
     closest_tangent_point = np.array(sgv.lonlat_to_vector(*sorted_tangent_points[0]))
     # Now associate index of sorted_tangent_points with that of all patches
     patch_tp_id = []
@@ -200,11 +214,12 @@ def find_closest_tangent_point(patches, image_corners):
                 patch_tp_id.append(i)
     return closest_tangent_point, patch_tp_id
 
+
 def normalize_vector(vec):
     """
     Normalize a 3d vector to have length 1. Only works on 1d arrays.
     """
-    return vec/np.sqrt((vec**2).sum())
+    return vec / np.sqrt((vec**2).sum())
 
 
 def veccoords_to_tangent_plane(vertices, tangent_point_vec):
@@ -217,22 +232,27 @@ def veccoords_to_tangent_plane(vertices, tangent_point_vec):
     """
     # First compute the tangent plane axis vectors.
     x_axis = normalize_vector(np.cross([0, 0, 1], tangent_point_vec))
-    y_axis = normalize_vector(np.array([0, 0, 1])
-        - np.array(tangent_point_vec) * np.dot(np.array([0, 0, 1]),
-        np.array(tangent_point_vec)))
+    y_axis = normalize_vector(
+        np.array([0, 0, 1])
+        - np.array(tangent_point_vec)
+        * np.dot(np.array([0, 0, 1]), np.array(tangent_point_vec))
+    )
     avertices = np.vstack(vertices)
     x_coords = np.dot(x_axis, avertices) * RAD_TO_ARCSEC
     y_coords = np.dot(y_axis, avertices) * RAD_TO_ARCSEC
     return x_coords, y_coords
 
-def plot_field(corners, id='', fill=None, color=None):
+
+def plot_field(corners, id="", fill=None, color=None):
     plt.fill(corners[0], corners[1], color=fill, edgecolor=color)
 
-def plot_patch(corners, id='', color=None):
+
+def plot_patch(corners, id="", color=None):
     plt.plot(corners[0], corners[1], color=color)
     if id:
         center = (corners[0][:-1].mean(), corners[1][:-1].mean())
-        plt.annotate(str(id), center, va='center', ha='center', size=10)
+        plt.annotate(str(id), center, va="center", ha="center", size=10)
+
 
 def plot(image_corners, patches_touched_ids, patches_candidate_ids):
     """
@@ -240,24 +260,32 @@ def plot(image_corners, patches_touched_ids, patches_candidate_ids):
     """
     plt.clf()
     plt.gca().invert_xaxis()
-    plt.plot(0, 0, '*', markersize=10)
+    plt.plot(0, 0, "*", markersize=10)
     patches_touched = [PATCH_TABLE[index] for index in patches_touched_ids]
     patches_candidate = [PATCH_TABLE[index] for index in patches_candidate_ids]
     tangent_point, patch_tp_id_touched = find_closest_tangent_point(
-        patches_touched, image_corners)
+        patches_touched, image_corners
+    )
     ra, dec = sgv.vector_to_lonlat(*tangent_point)
     dummy, patch_tp_id = find_closest_tangent_point(patches_candidate, image_corners)
     vec_image_corners = image_coords_to_vec(image_corners)
     tp_image_corners = veccoords_to_tangent_plane(vec_image_corners, tangent_point)
-    plot_field(tp_image_corners, fill='lightgrey', color='black')
+    plot_field(tp_image_corners, fill="lightgrey", color="black")
     for patch, id in zip(patches_candidate, patches_candidate_ids):
-        plot_patch(veccoords_to_tangent_plane(get_corners(patch), tangent_point),
-            id=id, color='lightgray')
+        plot_patch(
+            veccoords_to_tangent_plane(get_corners(patch), tangent_point),
+            id=id,
+            color="lightgray",
+        )
     for patch, id in zip(patches_touched, patches_touched_ids):
-        plot_patch(veccoords_to_tangent_plane(get_corners(patch), tangent_point),
-            id=id, color='blue')
+        plot_patch(
+            veccoords_to_tangent_plane(get_corners(patch), tangent_point),
+            id=id,
+            color="blue",
+        )
     plt.xlabel("Offset from nearest tangent point in arcsec")
     plt.ylabel("Offset from nearest tangent point in arcsec")
     plt.title(f"RA: {ra} Dec: {dec} of tangent point in degrees")
+
 
 load_patch_table()
