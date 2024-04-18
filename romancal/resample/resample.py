@@ -116,6 +116,7 @@ class ResampleData:
         if output_wcs:
             # use the provided WCS object
             self.output_wcs = output_wcs
+            #self["output_wcs"] = output_wcs
             if output_shape is not None:
                 self.output_wcs.array_shape = output_shape[::-1]
         else:
@@ -736,9 +737,12 @@ def gwcs_into_l3(model, wcsinfo):
 
     # Basic WCS info
     l3_wcsinfo.projection = "TAN"
-    l3_wcsinfo.rotation_matrix = transform["pc_rotation_matrix"].matrix.value.tolist()
-    l3_wcsinfo.dec_ref = transform.lat_6.value
-    l3_wcsinfo.ra_ref = transform.lon_6.value
+    if hasattr(transform, 'pc_rotation_matrix'):
+        l3_wcsinfo.rotation_matrix = transform["pc_rotation_matrix"].matrix.value.tolist()
+    if hasattr(transform, 'lat_6'):
+        l3_wcsinfo.dec_ref = transform.lat_6.value
+    if hasattr(transform, 'lon_6'):
+        l3_wcsinfo.ra_ref = transform.lon_6.value
     # l3_wcsinfo.x_ref = center of mosaic?
     # l3_wcsinfo.y_ref = center of mosaic?
     # l3_wcsinfo.s_region = from gwcs.bounding_box
