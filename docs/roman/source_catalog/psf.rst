@@ -8,13 +8,9 @@ fit PSF models to observations.
 Create PSF models
 -----------------
 
-`~romancal.source_catalog.psf.create_gridded_psf_model`
-computes a gridded PSF model for a given detector using
-`~stpsf.gridded_library.CreatePSFLibrary` from `STPSF
-<https://stpsf.readthedocs.io/>`_. The defaults are chosen to balance
-more accurate PSF models with the cost of increased runtime. For further
-reading on the STPSF approach to ePSFs, see the STPSF docs on `Using
-PSF Grids <https://stpsf.readthedocs.io/en/latest/psf_grids.html>`_.
+`~romancal.source_catalog.psf.get_psf_library`
+computes a gridded PSF model for a given detector and
+filter using the reference files from CRDS.
 
 Fit model PSFs to an ImageModel
 -------------------------------

@@ -108,6 +108,7 @@ class RomanSourceCatalog:
         kernel_fwhm,
         fit_psf,
         mask=None,
+        psf_ref_model=None,
         detection_cat=None,
         flux_unit="nJy",
     ):
@@ -121,6 +122,7 @@ class RomanSourceCatalog:
         self.kernel_sigma = kernel_fwhm * gaussian_fwhm_to_sigma
         self.fit_psf = fit_psf
         self.mask = mask
+        self.psf_ref_model = (psf_ref_model,)
         self.detection_cat = detection_cat
 
         if len(ci_star_thresholds) != 2:
@@ -1180,24 +1182,12 @@ class RomanSourceCatalog:
         It then fits the PSF model to the image model's sources to improve astrometric precision.
 
         """
-        log.info("Constructing a gridded PSF model.")
-        if hasattr(self.model.meta, "instrument"):
-            # ImageModel (L2 datamodel)
-            filt = self.model.meta.instrument.optical_element
-            detector = self.model.meta.instrument.detector.replace("WFI", "SCA")
-        else:
-            # MosaicModel (L3 datamodel)
-            filt = self.model.meta.basic.optical_element
-            detector = "SCA02"
-        # prefix of the temporary FITS file that will contain the gridded PSF model
-        gridded_psf_model, _ = psf.create_gridded_psf_model(
-            filt=filt,
-            detector=detector,
-        )
+        log.info("Construction a gridded PSF model using the CRDS library.")
+        gridded_psf_model = psf.get_psf_library(self)
 
         log.info("Fitting a PSF model to sources for improved astrometric precision.")
         xinit, yinit = np.transpose(self._xypos)
-        psf_photometry_table, photometry = psf.fit_psf_to_image_model(
+        psf_photometry_table, _ = psf.fit_psf_to_image_model(
             image_model=self.model,
             mask=self.mask,
             psf_model=gridded_psf_model,

@@ -66,6 +66,11 @@ class SourceCatalogStep(RomanStep):
         if not isinstance(input_model, ImageModel | MosaicModel):
             raise ValueError("The input model must be an ImageModel or MosaicModel.")
 
+        #get the name of the psf reference file
+        self.ref_file = self.get_reference_file(input_model, "epsf")
+        self.log.info("Using ePSF reference file: %s", self.ref_file)
+        psf_ref_model = datamodels.open(self.ref_file)
+
         # Define a boolean mask for pixels to be excluded
         mask = (
             ~np.isfinite(input_model.data)
@@ -169,6 +174,7 @@ class SourceCatalogStep(RomanStep):
                 self.fit_psf & (not forced),
                 # don't need to do PSF photometry here when forcing; happens later
                 mask=mask,
+                psf_ref_model = psf_ref_model,
             )
             cat = catobj.catalog
 
@@ -184,6 +190,7 @@ class SourceCatalogStep(RomanStep):
                 self.kernel_fwhm,
                 self.fit_psf,
                 mask=mask,
+                psf_ref_model = psf_ref_model,
             )
             # we have two catalogs, both using a specified set of
             # pre-specified segments.  We want:
@@ -293,3 +300,4 @@ def update_metadata(model, output_catalog_name):
     model.meta.source_catalog = SourceCatalog()
     model.meta.source_catalog.tweakreg_catalog_name = output_catalog_name
     model.meta.cal_step.source_catalog = "COMPLETE"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
