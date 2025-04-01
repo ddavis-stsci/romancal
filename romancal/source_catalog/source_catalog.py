@@ -88,6 +88,7 @@ class RomanSourceCatalog:
         *,
         fit_psf=True,
         mask=None,
+        psf_ref_model=None,
         detection_cat=None,
         flux_unit="nJy",
     ):
@@ -100,6 +101,7 @@ class RomanSourceCatalog:
         self.kernel_fwhm = kernel_fwhm
         self.fit_psf = fit_psf
         self.mask = mask
+        self.psf_ref_model = (psf_ref_model,)
         self.detection_cat = detection_cat
         self.flux_unit = flux_unit
 
@@ -459,6 +461,7 @@ class RomanSourceCatalog:
         """
         An ordered list of the output catalog column names.
         """
+<<<<<<< HEAD
         # define the aperture flux column names
         aper_colnames = []
         for colname in self.aperture_cat.aperture_flux_colnames:
@@ -534,6 +537,31 @@ class RomanSourceCatalog:
             colnames.extend(flux_colnames)
 
         return colnames
+=======
+        log.info("Construction a gridded PSF model using the CRDS library.")
+        gridded_psf_model = psf.get_psf_library(self)
+
+        log.info("Fitting a PSF model to sources for improved astrometric precision.")
+        xinit, yinit = np.transpose(self._xypos)
+        psf_photometry_table, _ = psf.fit_psf_to_image_model(
+            image_model=self.model,
+            mask=self.mask,
+            psf_model=gridded_psf_model,
+            x_init=xinit,
+            y_init=yinit,
+            exclude_out_of_bounds=True,
+        )
+
+        # mapping between the columns of the PSF photometry table
+        # and the name that will be used in the final catalog
+        old_name_to_new_name_mapping = {
+            x["old_name"]: x["new_name"] for x in self.psf_photometry_catalog_mapping
+        }
+
+        # append PSF results to the class instance with the proper column name
+        for old_name, new_name in old_name_to_new_name_mapping.items():
+            setattr(self, new_name, psf_photometry_table[old_name])
+>>>>>>> 078e1fa8 (rcal-1038 Add psf library to source_catalog step and docs for the PSF library)
 
     @lazyproperty
     def catalog(self):
