@@ -19,6 +19,7 @@ from photutils.psf import (
     PSFPhotometry,
     SourceGrouper,
 )
+import scipy
 
 <<<<<<< HEAD
 =======
@@ -47,7 +48,9 @@ def get_psf_library(self):
     # A0V, G2V, and M6V, pick M5V (2)
     focus = 0
     spectral_type = 2
+    jitter_value = 1.0
     psf_images = self.psf_ref_model[0].psf[focus, spectral_type, :, :, :]
+    psf_images = scipy.ndimage.gaussian_filter(psf_images, sigma=jitter_value)
     # get the central position of the cutouts in a list
     psf_positions_x = self.psf_ref_model[0].meta.pixel_x.data.data
     psf_positions_y = self.psf_ref_model[0].meta.pixel_y.data.data
