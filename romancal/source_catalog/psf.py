@@ -48,7 +48,7 @@ def get_psf_library(self):
     # A0V, G2V, and M6V, pick M5V (2)
     focus = 0
     spectral_type = 2
-    jitter_value = 1.0
+    jitter_value = 1.1
     psf_images = self.psf_ref_model[0].psf[focus, spectral_type, :, :, :]
     psf_images = scipy.ndimage.gaussian_filter(psf_images, sigma=jitter_value)
     # get the central position of the cutouts in a list
