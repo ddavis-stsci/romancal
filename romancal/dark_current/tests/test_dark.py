@@ -3,7 +3,6 @@ Unit tests for dark current correction
 """
 
 import numpy as np
-import pdb
 import pytest
 import roman_datamodels as rdm
 from roman_datamodels import stnode as stnode
@@ -62,7 +61,6 @@ def test_dark_step_subtraction(instrument, exptype):
     #    ramp_model.data[0, 0, i] = i
     #    darkref_model.data[0, 0, i] = i * 0.1
     orig_model = ramp_model.copy()
-    #pdb.set_trace()
 
     # Perform Dark Current subtraction step
     result = DarkCurrentStep.call(ramp_model, override_dark=darkref_model)
@@ -158,7 +156,7 @@ def create_image_and_dark(shape, instrument, exptype):
     darkref = DarkRefModel.create_fake_data(shape=shape[1:])
     darkref.data = np.zeros(shape, dtype=darkref.data.dtype)
     darkref.data = darkref.data[np.newaxis, :, :]
-    darkref.dark_slope = np.full((shape[0]+8, shape[1]+8), 0.00529882, dtype=np.float32)
-    darkref.dark_slope_error = np.full((shape[0]+8, shape[1]+8), 2.6497813e-05, dtype=np.float32)
+    darkref.dark_slope = np.full((shape[0]+8, shape[1]+8), 5.3e-03, dtype=np.float32)
+    darkref.dark_slope_error = np.full((shape[0]+8, shape[1]+8), 2.6e-05, dtype=np.float32)
 
     return image, darkref
