@@ -102,6 +102,9 @@ cp Test_darkcurrent.asdf $outdir/roman-pipeline/dev/truth/WFI/image/
 strun romancal.step.LinearityStep r0000101001001001001_0001_wfi01_f158_refpix.asdf --output_file=Test_linearity
 cp Test_linearity.asdf $outdir/roman-pipeline/dev/truth/WFI/image/
 
+# test likelihood-based ramp fitting step
+strun romancal.step.RampFitStep r0000101001001001001_0001_wfi01_f158_linearity.asdf --algorithm=likely --output_file=r0000101001001001001_0001_wfi01_f158_like_rampfit.asdf
+cp r0000101001001001001_0001_wfi01_f158_like_rampfit.asdf $outdir/roman-pipeline/dev/truth/WFI/image/
 
 # we have a test that runs the flat field step directly on an _L1_ spectroscopic
 # file and verifies that it gets skipped.
