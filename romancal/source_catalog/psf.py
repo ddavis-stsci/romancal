@@ -327,6 +327,7 @@ def create_l3_psf_model(
     pixfrac=1.0,
     pixel_scale=0.11,
     oversample=11,
+    threshold = 1.,
 ):
     """
     Compute a PSF model for an L3 image.
@@ -353,11 +354,15 @@ def create_l3_psf_model(
         Often similar to the default detector scale of 0.11 arcsec.
     oversample : int, optional
         Oversample factor, default is 11.
+    threshold: float
+        Set the image pixels to zero below a fraction of the peak. 
 
     Returns
     -------
     psf_model : `photutils.psf.ImagePSF`
         PSF model.
+    psf : `photutils.psf.ImagePSF`
+        PSF as an image.
 
     """
 
@@ -389,7 +394,13 @@ def create_l3_psf_model(
     y_0 = (y_0 - 1) / 2.0 / oversample
     psf_model = ImagePSF(psf, x_0=x_0, y_0=y_0, oversampling=oversample)
 
-    return psf_model
+    # if threshold is set zero the pixels below that
+    if threshold:
+        if threshold >= 1.:
+            log.info('Threshold must be less than one, returning model and psf without threshold')
+            return psf_model, psf
+        psf[psf < threshold * np.max(psf)] = 0.
+    return psf_model, psf
 
 
 def fit_psf_to_image_model(
@@ -504,6 +515,14 @@ def fit_psf_to_image_model(
             outer_radius=30,  # [pix]
         )
 
+    
+    if hasattr(psf_model.meta, 'reftype'):
+        psf_model, _ = create_l3_psf_model(
+            psf_model,
+            pixel_scale=image_model.meta.wcsinfo.pixel_scale
+            * 3600.0,  # wcsinfo is in degrees. Need arcsec
+            pixfrac=image_model.meta.resample.pixfrac,
+        )        
     photometry = photometry_cls(
         grouper=grouper,
         localbkg_estimator=localbkg_estimator,
@@ -592,19 +611,10 @@ class PSFCatalog:
         A gridded PSF model based on instrument and detector
         information.
         """
-        if hasattr(self.model.meta, "instrument"):
-            # ImageModel (L2 datamodel)
-            psf_model = get_gridded_psf_model(self.psf_ref_model)
+        if self.model.meta.model_type == "ImageModel":
+            return get_gridded_psf_model(self.psf_ref_model)
         else:
-            # MosaicModel (L3 datamodel)
-            psf_model = create_l3_psf_model(
-                self.psf_ref_model,
-                pixel_scale=self.model.meta.wcsinfo.pixel_scale
-                * 3600.0,  # wcsinfo is in degrees. Need arcsec
-                pixfrac=self.model.meta.resample.pixfrac,
-            )
-
-        return psf_model
+            return self.psf_ref_model
 
     @lazyproperty
     def _name_map(self):

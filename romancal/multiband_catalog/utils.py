@@ -1,3 +1,6 @@
+import numpy as np
+from roman_datamodels.datamodels import ImageModel, MosaicModel
+
 def insert_substring(original, insert_str, substring, before=True):
     """
     Insert ``insert_str`` into ``original`` before or after ``substring``.
@@ -78,3 +81,51 @@ def add_filter_to_colnames(table, filter_name):
                     break  # no need to check other ext
 
     return table
+
+def prefix_matched(catobj):
+    """
+    Prefix select columns of the catalog with "matched_" for the
+    forced catalog.
+
+    Parameters
+    ----------
+    catalog : `~astropy.table.Table`
+        The source catalog to prefix.
+
+    Returns
+    -------
+    catalog : `~astropy.table.Table`
+        The updated source catalog.
+    """
+    # prefix all columns (except "label") with "forced_"
+    if catobj.cat_type == "dr_band":
+        for colname in catobj.catalog.colnames:
+            if colname != "label":
+                catobj.catalog.rename_column(colname, f"matched_{colname}")
+
+    return catobj.catalog
+    
+def make_mask(model):
+    """
+    Mask Nan's in the data
+
+    Parameters
+    ----------
+    model : `Roman Data Model`
+        The data to mask
+
+    Returns
+    -------
+    mask : `numpy array`
+        Flags the data where NaN's are found
+    """
+    if not isinstance(model, ImageModel | MosaicModel):
+        raise ValueError("The input model must be an ImageModel or MosaicModel.")
+
+    mask = (
+        ~np.isfinite(model.data)
+        | ~np.isfinite(model.err)
+        | (model.err <= 0)
+    )
+      
+    return mask

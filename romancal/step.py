@@ -10,6 +10,7 @@ from .flatfield.flat_field_step import FlatFieldStep
 from .flux import FluxStep
 from .linearity.linearity_step import LinearityStep
 from .multiband_catalog.multiband_catalog_step import MultibandCatalogStep
+from .multiband_catalog.multiband_mos_catalog import MultibandMosCatalog
 from .outlier_detection.outlier_detection_step import OutlierDetectionStep
 from .photom.photom_step import PhotomStep
 from .ramp_fitting.ramp_fit_step import RampFitStep
@@ -28,6 +29,7 @@ __all__ = [
     "FluxStep",
     "LinearityStep",
     "MultibandCatalogStep",
+    "MultibandMosCatalog",
     "OutlierDetectionStep",
     "PhotomStep",
     "RampFitStep",
