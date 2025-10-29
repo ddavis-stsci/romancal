@@ -65,6 +65,10 @@ def save_segment_image(self, segment_img, source_catalog_model, output_filename)
 
     # Save the segmentation image to the output file
     self.output_ext = "asdf"
+    segmentation_model.meta.image.filename = source_catalog_model.meta.filename
+    segmentation_model.meta.image.file_date = source_catalog_model.meta.file_date
+
+    log.info(f'Save Utils: segment_image.filename is {segmentation_model.meta.filename}')
     self.save_model(
         segmentation_model,
         output_file=output_filename,
@@ -168,6 +172,8 @@ def save_all_results(self, segment_img, cat_model, input_model=None):
         self.output_file = cat_model.meta.filename
 
     # validate the result to flush out any lazy-loaded contents
+    result.meta.image.file_date = cat_model.meta.file_date
+    result.meta.image.filename = cat_model.meta.filename
     result.validate()
     return result
 
