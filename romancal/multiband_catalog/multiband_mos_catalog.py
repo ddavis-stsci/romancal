@@ -238,8 +238,7 @@ class MultibandMosCatalog(RomanStep):
                 det_cat = join(det_cat, cat, keys="label", join_type="outer")
 
             # now process the science images based on the relative wavelength
-            # for idx in science_index:
-            for idx in range(len(science_index)):
+            for idx, _ in enumerate(science_index):
                 science_file_name = library.asn['products'][0]['members'][science_index[idx]]['expname']
                 science_image_model = library._loaded_models[science_index[idx]]
                 log.info(f"Processing for science image {science_file_name} {idx}")
@@ -258,7 +257,7 @@ class MultibandMosCatalog(RomanStep):
                     * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
                     pixfrac=reference_model.meta.resample.pixfrac,
                     oversample=oversample,
-                    threshold=threshold, 
+                    threshold=threshold,
                 )
 
                 # information and CRDS epsf ref files for the matching  science image
@@ -271,7 +270,7 @@ class MultibandMosCatalog(RomanStep):
                 # FFT smoothing is applied. This supresses that source of noise but should have a more robust
                 # fix later
                 l3_psf_reference_image[l3_psf_reference_image <
-                                       np.average(l3_psf_reference_image[:,0:260])*950.] = 0. 
+                                       np.average(l3_psf_reference_image[:,0:260])*950.] = 0.
                 # setup mask for the input data
                 mask = make_mask(science_image_model)
 
@@ -281,7 +280,7 @@ class MultibandMosCatalog(RomanStep):
                     # convolve the match data with the level 3 reference image psf
                     log.info(f"Start the convolution for science index {idx}, lambda={science_image_lambda}")
                     # Trim the science data, currently processing results in large negative pixels which affect
-                    # the convolution in unphyical ways
+                    # the convolution in unphysical ways
                     science_image_model.data[science_image_model.data<0.]=0.
                     # generate L3 psf's for the science image to be matched to the reference image using CRDS files
                     l3_psf_match_model,  l3_psf_match_image = create_l3_psf_model(
@@ -289,7 +288,7 @@ class MultibandMosCatalog(RomanStep):
                         pixel_scale=science_image_model.meta.wcsinfo.pixel_scale
                                      * 3600.0,  # wcsinfo is in degrees. Need arcsec
                         pixfrac=science_image_model.meta.resample.pixfrac,
-                        oversample= oversample, 
+                        oversample= oversample,
                         threshold=threshold,
                     )
                     np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_image)
@@ -319,13 +318,16 @@ class MultibandMosCatalog(RomanStep):
                     x_0, y_0 = matched_l3_psf.shape
                     x_0 = (x_0 - 1) / 2.0 / oversample
                     y_0 = (y_0 - 1) / 2.0 / oversample
-                    matched_l3_model = ImagePSF(matched_l3_psf,  x_0=x_0, y_0=y_0, oversampling=oversample)
+                    matched_l3_model = ImagePSF(matched_l3_psf,
+                                                x_0=x_0, y_0=y_0,
+                                                oversampling=oversample)
                     #np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_image)
 
                     apcorr_ref = self.get_reference_file(science_image_model, "apcorr")
                     ee_spline = get_ee_spline(science_image_model, apcorr_ref)
                     log.info("Create the src catalog")
-                    science_image_model.data = data_conv # replace the match data with the convolved data
+                    # replace the match data with the convolved data
+                    science_image_model.data = data_conv
                     log.info(f"Creating catalog for {science_filter_name} image")
                     catobj = RomanSourceCatalog(
                         science_image_model,
@@ -390,10 +392,10 @@ class MultibandMosCatalog(RomanStep):
                         * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
                         pixfrac=reference_model.meta.resample.pixfrac,
                         oversample=oversample,
-                        threshold=threshold, 
+                        threshold=threshold,
                     )
 
-                    # Diagnostics 
+                    # Diagnostics
                     # trim the l3_psf_image
                     # the returned L3 PSF image contains many low values far in the wings that supply noise when the
                     # FFT smoothing is applied. This supresses that source of noise. 
