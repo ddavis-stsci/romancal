@@ -282,7 +282,7 @@ class MultibandMosCatalog(RomanStep):
                     # Trim the science data, currently processing results in large negative pixels which affect
                     # the convolution in unphysical ways
                     science_image_model.data[science_image_model.data<0.]=0.
-                    # generate L3 psf's for the science image to be matched to the reference image using CRDS files
+                    # generate L3 psf's for the science image to be matched to the reference image
                     l3_psf_match_model,  l3_psf_match_image = create_l3_psf_model(
                         psf_science_model,
                         pixel_scale=science_image_model.meta.wcsinfo.pixel_scale
@@ -321,12 +321,12 @@ class MultibandMosCatalog(RomanStep):
                     matched_l3_model = ImagePSF(matched_l3_psf,
                                                 x_0=x_0, y_0=y_0,
                                                 oversampling=oversample)
-                    #np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_image)
+                    np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_image)
 
                     apcorr_ref = self.get_reference_file(science_image_model, "apcorr")
                     ee_spline = get_ee_spline(science_image_model, apcorr_ref)
                     log.info("Create the src catalog")
-                    # replace the match data with the convolved data
+                    # replace the science data with the convolved data
                     science_image_model.data = data_conv
                     log.info(f"Creating catalog for {science_filter_name} image")
                     catobj = RomanSourceCatalog(
@@ -351,17 +351,9 @@ class MultibandMosCatalog(RomanStep):
                 elif science_image_lambda > ref_lambda:
                     # setup a matching psf model for the non-reference model based on the reference psf
                     # convolve the reference data with the level 3  match image psf
-                    log.info(f"Start the convolution {science_image_lambda}")
-                    # copy the reference image data so that we do not modify the original data, remove NaN's
-                    # and set all negative data to zero to make the FFT smoothing behave in a reasonable fashon
-                    log.info("Setting the reference model to the saved copy to prevent multiple smoothings")
-                    #reference_image_model = reference_model.copy()
-                    # make sure we are not using the convolved data for the reference
-                    #reference_image_model.data = reference_image_data
-                    #reference_image_model.data = np.nan_to_num(reference_image_data, copy=True, nan=0.0)
-                    #reference_image_model.data[science_image_model.data<0.]=0.
+                    log.info(f"Start processing science image with lambda= {science_image_lambda}")
                     log.info("Create matched psf for science data redder that reference")
-                    #pdb.set_trace()
+
                     _, l3_psf_science_image= create_l3_psf_model(
                         psf_science_model,
                         pixel_scale=reference_model.meta.wcsinfo.pixel_scale
@@ -423,7 +415,7 @@ class MultibandMosCatalog(RomanStep):
                         normalize_kernel=True)
                     #log.info(f"total match data before convolution {np.nansum(science_image_model.data)}")
                     #log.info(f"total match data after convolution {(np.nansum(science_image_model.data)-np.nansum(data_conv>0.))/np.nansum(data_conv>0.)}")
-                    log.info(f"%diff  after convolution {np.nansum(data_conv)}")
+                    #log.info(f"%diff  after convolution {np.nansum(data_conv)}")
                     apcorr_ref = self.get_reference_file(science_image_model, "apcorr")
                     ee_spline = get_ee_spline(science_image_model, apcorr_ref)
                     # Clean up the FFT smoothed image to prevent crazy fluxes, e.g. negative or inifinite values

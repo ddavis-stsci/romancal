@@ -74,7 +74,10 @@ def library_model_all_nan(mosaic_model):
     model2 = mosaic_model.copy()
     model2.data[:] = np.nan
     model2.meta.instrument.optical_element = "F158"
-    return ModelLibrary([model1, model2])
+    model3 = mosaic_model.copy()
+    model3.data[:] = np.nan
+    model3.meta.instrument.optical_element = "F087"
+    return ModelLibrary([model1, model2, model3])
 
 
 @pytest.mark.parametrize("fit_psf", (True, False))
@@ -152,7 +155,7 @@ def test_multiband_catalog(
         assert isinstance(rdm.open(filepath), MultibandSegmentationMapModel)
 
 
-@pytest.mark.parametrize("save_results", (True, False))
+@pytest.mark.parametrize("save_results", (True, False, False))
 def test_multiband_catalog_no_detections(library_model, save_results, function_jail):
     step = MultibandCatalogStep()
 
@@ -170,7 +173,7 @@ def test_multiband_catalog_no_detections(library_model, save_results, function_j
     assert len(cat) == 0
 
 
-@pytest.mark.parametrize("save_results", (True, False))
+@pytest.mark.parametrize("save_results", (True, False, False))
 def test_multiband_catalog_invalid_inputs(
     library_model_all_nan, save_results, function_jail
 ):
@@ -190,7 +193,7 @@ def test_multiband_catalog_invalid_inputs(
     assert len(cat) == 0
 
 
-@pytest.mark.parametrize("save_results", (True, False))
+@pytest.mark.parametrize("save_results", (True, False, False))
 def test_multiband_catalog_some_invalid_inputs(
     library_model, save_results, function_jail
 ):
