@@ -361,9 +361,6 @@ def create_l3_psf_model(
     -------
     psf_model : `photutils.psf.ImagePSF`
         PSF model.
-    psf : `photutils.psf.ImagePSF`
-        PSF as an image.
-
     """
 
     gridpsf = get_gridded_psf_model(psf_ref_model)
@@ -400,7 +397,7 @@ def create_l3_psf_model(
             log.info('Threshold must be less than one, returning model and psf without threshold')
             return psf_model, psf
         psf[psf < threshold * np.max(psf)] = 0.
-    return psf_model, psf
+    return psf_model
 
 
 def fit_psf_to_image_model(
