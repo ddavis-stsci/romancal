@@ -26,7 +26,7 @@ from romancal.source_catalog.detection import make_segmentation_image
 from romancal.source_catalog.save_utils import save_all_results, save_empty_results
 from romancal.source_catalog.source_catalog import RomanSourceCatalog
 from romancal.source_catalog.utils import get_ee_spline, copy_coadd_meta
-from romancal.source_catalog.psf import create_l3_psf_model
+from romancal.source_catalog.psf import create_l3_psf_model, create_convolution_kernel
 from romancal.stpipe import RomanStep
 
 if TYPE_CHECKING:
@@ -93,25 +93,25 @@ class MultibandMosCatalog(RomanStep):
             if len(reference_index) != 1:
                 log.info("Only one reference model is allowed for the multiband catalog")
                 return
-            reference_model = library.borrow(reference_index[0])
-            ref_lambda = int(reference_model.meta.instrument.optical_element[1:])
-            library.shelve(reference_model, modify=False)
+            reference_image_model = library.borrow(reference_index[0])
+            ref_lambda = int(reference_image_model.meta.instrument.optical_element[1:])
+            library.shelve(reference_image_model, modify=False)
 
         # Initialize the source catalog model, copying the metadata
         # from the input model
         cat_model = datamodels.MultibandSourceCatalogModel.create_minimal(
-            {"meta": reference_model.meta}
+            {"meta": reference_image_model.meta}
         )
-        if isinstance(reference_model, datamodels.MosaicModel):
-            copy_coadd_meta(reference_model, cat_model)
+        if isinstance(reference_image_model, datamodels.MosaicModel):
+            copy_coadd_meta(reference_image_model, cat_model)
         else:
             cat_model.meta.optical_element = (
-                reference_model.meta.instrument.optical_element
+                reference_image_model.meta.instrument.optical_element
             )
 
         log.info("Creating ee_fractions model for first image")
-        apcorr_ref = self.get_reference_file(reference_model, "apcorr")
-        ee_spline = get_ee_spline(reference_model, apcorr_ref)
+        apcorr_ref = self.get_reference_file(reference_image_model, "apcorr")
+        ee_spline = get_ee_spline(reference_image_model, apcorr_ref)
 
         # Define the output filename for the source catalog model
         try:
@@ -173,8 +173,8 @@ class MultibandMosCatalog(RomanStep):
 
         # TODO: this is a temporary solution to get model attributes
         # currently needed in RomanSourceCatalog
-        det_model.weight = reference_model.weight
-        det_model.meta = reference_model.meta
+        det_model.weight = reference_image_model.weight
+        det_model.meta = reference_image_model.meta
 
         # The stellar FWHM is needed to define the kernel used for
         # the DAOStarFinder sharpness and roundness properties.
@@ -207,14 +207,14 @@ class MultibandMosCatalog(RomanStep):
             if cat_obj is None:
                 # get the reference image
                 #pdb.set_trace()
-                model = reference_model
+                model = reference_image_model
                 #reference_image_data = model.copy()
                 reference_image_data = model.data
 
-                mask_ref = make_mask(reference_model)
+                mask_ref = make_mask(reference_image_model)
 
-                psf_ref_file = self.get_reference_file(reference_model, "epsf")
-                psf_reference_model = datamodels.open(psf_ref_file)
+                psf_ref_file = self.get_reference_file(reference_image_model, "epsf")
+                psf_reference_image_model = datamodels.open(psf_ref_file)
                 ref_filter_name = model.meta.instrument.optical_element
                 log.info(f"Creating catalog for {ref_filter_name} image")
                 apcorr_ref = self.get_reference_file(model, "apcorr")
@@ -222,18 +222,19 @@ class MultibandMosCatalog(RomanStep):
 
                 # Make the catalog for the reference image
                 catobj = RomanSourceCatalog(
-                      reference_model,
+                      reference_image_model,
                       segment_img,
                       None,
                       star_kernel_fwhm,
                       fit_psf=self.fit_psf,
                       detection_cat=det_catobj,
                       mask=mask_ref,
-                      psf_ref_model=psf_reference_model,
+                      psf_ref_model=psf_reference_image_model,
                       cat_type="dr_band",
                       ee_spline=ee_spline,
                   )
-                 # Add the filter name to the column names
+                #pdb.set_trace()
+                # Add the filter name to the column names
                 cat = add_filter_to_colnames(catobj.catalog, ref_filter_name)
                 ee_fractions = cat.meta["ee_fractions"]
                 det_cat = join(det_cat, cat, keys="label", join_type="outer")
@@ -252,15 +253,15 @@ class MultibandMosCatalog(RomanStep):
                 # set the oversample parameter for creating the l3 psf model
                 oversample = 11
                 # generate L3 psf's for the reference image in the association
-                l3_psf_reference_model = create_l3_psf_model(
-                    psf_reference_model,
-                    pixel_scale=reference_model.meta.wcsinfo.pixel_scale
-                    * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
-                    pixfrac=reference_model.meta.resample.pixfrac,
-                    oversample=oversample,
-                    threshold=threshold,
-                )
-                #_, l3_psf_reference_image = create_l3_psf_model(psf_reference_model, pixfrac=1, pixel_scale=reference_model.meta.wcsinfo.pixel_scale*3600)
+                #l3_psf_reference_image_model = create_l3_psf_model(
+                #    psf_reference_image_model,
+                #    pixel_scale=reference_image_model.meta.wcsinfo.pixel_scale
+                #    * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
+                #    pixfrac=reference_image_model.meta.resample.pixfrac,
+                #    oversample=oversample,
+                #    threshold=threshold,
+                #)
+                l3_psf_reference_image_model = create_l3_psf_model(psf_reference_image_model, pixfrac=1, pixel_scale=reference_image_model.meta.wcsinfo.pixel_scale*3600)
 
                 # information and CRDS epsf ref files for the matching  science image
                 science_image_lambda = int(science_image_model.meta.instrument.optical_element[1:])
@@ -273,8 +274,8 @@ class MultibandMosCatalog(RomanStep):
                 # fix later
                 #l3_psf_reference_image[l3_psf_reference_image <
                 #                       np.average(l3_psf_reference_image[:,0:260])*950.] = 0.
-                l3_psf_reference_model.data[l3_psf_reference_model.data <
-                                       np.average(l3_psf_reference_model.data[:,0:260])*950.] = 0.
+                #l3_psf_reference_image_model.data[l3_psf_reference_image_model.data <
+                #                       np.average(l3_psf_reference_image_model.data[:,0:260])*950.] = 0.
                 # setup mask for the input data
                 mask = make_mask(science_image_model)
 
@@ -285,23 +286,25 @@ class MultibandMosCatalog(RomanStep):
                     log.info(f"Start the convolution for science index {idx}, lambda={science_image_lambda}")
                     # Trim the science data, currently processing results in large negative pixels which affect
                     # the convolution in unphysical ways
-                    science_image_model.data[science_image_model.data<0.]=0.
+                    #science_image_model.data[science_image_model.data<0.]=0.
                     # generate L3 psf's for the science image to be matched to the reference image
-                    l3_psf_match_model  = create_l3_psf_model(
-                       psf_science_model,
-                        pixel_scale=science_image_model.meta.wcsinfo.pixel_scale
-                                     * 3600.0,  # wcsinfo is in degrees. Need arcsec
-                        pixfrac=science_image_model.meta.resample.pixfrac,
-                        oversample= oversample,
-                        threshold=threshold,
-                    )
-                    #l3psf = create_l3_psf_model(psf_science_model, pixfrac=1, pixel_scale=science_image_model.meta.wcsinfo.pixel_scale*3600)
+                    #pdb.set_trace()
+                    #l3_psf_match_model  = create_l3_psf_model(
+                    #   psf_science_model,
+                    #    pixel_scale=science_image_model.meta.wcsinfo.pixel_scale
+                    #                 * 3600.0,  # wcsinfo is in degrees. Need arcsec
+                    #    pixfrac=science_image_model.meta.resample.pixfrac,
+                    #    oversample= oversample,
+                    #    threshold=threshold,
+                    #)
+                    l3_psf_match_model = create_l3_psf_model(psf_science_model, pixfrac=1, pixel_scale=science_image_model.meta.wcsinfo.pixel_scale*3600)
                     #np.save(f'l3psf_{science_image_lambda}_image', l3psf[1])
                     
                     # Match the match image psf to the reference image psf
-                    matched_l3_psf = create_matching_kernel(l3_psf_match_model.data,
-                                                            l3_psf_reference_model.data,
-                                                            window=window)
+                    #matched_l3_psf = create_matching_kernel(l3_psf_match_model[1],
+                    #                                        l3_psf_reference_image_model[1],
+                    #                                        window=window)
+                    matched_l3_psf = create_convolution_kernel(l3_psf_reference_image_model.data, l3_psf_match_model.data, downsample=4, size=19)
                     np.save(f'l3_psf_matched_{science_image_lambda}_image', matched_l3_psf)
                     # trim the l3_psf_image
                     # the returned L3 PSF image contains many low values far in the wings that supply noise when the
@@ -309,6 +312,11 @@ class MultibandMosCatalog(RomanStep):
                     #l3_psf_reference_image[l3_psf_reference_image <
                     #                       np.average(l3_psf_reference_image[:,0:260])*950.] = 0.
                     
+                    bkg_sci_img = RomanBackground(
+                        science_image_model.data,
+                        box_size=self.bkg_boxsize,
+                        coverage_mask=mask, )
+                    science_image_model.data -= bkg_sci_img.background
                     fft_threshold = np.nanmedian(science_image_model.data) * 0.1
 
                     # Convolve the science data to match the PSF of the reference image
@@ -363,85 +371,80 @@ class MultibandMosCatalog(RomanStep):
                     log.info(f"Start processing science image with lambda= {science_image_lambda}")
                     log.info("Create matched psf for science data redder that reference")
 
-                    l3_psf_science_model = create_l3_psf_model(
-                        psf_science_model,
-                        pixel_scale=reference_model.meta.wcsinfo.pixel_scale
-                        * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
-                        #pixfrac=reference_model.meta.resample.pixfrac,
-                        pixfrac=1.0,
-                        oversample=oversample,
-                        threshold=threshold,
-                    )
-                    #_, l3_psf_science_image = create_l3_psf_model(psf_science_model, pixfrac=1, pixel_scale=reference_model.meta.wcsinfo.pixel_scale*3600)
+                    #l3_psf_science_model = create_l3_psf_model(
+                    #    psf_science_model,
+                    #    pixel_scale=reference_image_model.meta.wcsinfo.pixel_scale
+                    #    * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
+                    #    #pixfrac=reference_image_model.meta.resample.pixfrac,
+                    #    pixfrac=1.0,
+                    #    oversample=oversample,
+                    #    threshold=threshold,
+                    #)
+                    window = CosineBellWindow(alpha=0.28)
+                    l3_psf_science_model = create_l3_psf_model(psf_science_model, pixfrac=1, pixel_scale=reference_image_model.meta.wcsinfo.pixel_scale*3600)
                     # match the reference psf to the science image psf
-                    matched_l3_psf = create_matching_kernel(l3_psf_reference_model.data,
-                                                            l3_psf_science_model.data,
-                                                            window=window)
+                    #matched_l3_psf = create_matching_kernel(l3_psf_reference_image_model[1],
+                    #                                        l3_psf_science_model[1],
+                    #                                        window=window)
+                    matched_l3_psf = create_convolution_kernel(l3_psf_reference_image_model.data, l3_psf_science_model.data, downsample=4, size=19)
                     np.save(f'l3_psf_science_{science_image_lambda}_image', l3_psf_science_model.data)
-                    np.save(f'l3_psf_reference_{ref_lambda}_image', l3_psf_reference_model.data)
+                    np.save(f'l3_psf_reference_{ref_lambda}_image', l3_psf_reference_image_model.data)
                     np.save(f'l3_matched_psf_{science_image_lambda}_image', matched_l3_psf)
 
-                    #x_0, y_0 = matched_l3_psf.shape
-                    #x_0 = (x_0 - 1) / 2.0 / oversample
-                    #y_0 = (y_0 - 1) / 2.0 / oversample
-
-                    # Generate a psf model for the redder science image to convolve the
-                    # refererence image so the ref psf matches the science image psf
-                    #matched_l3_model = ImagePSF(matched_l3_psf,  x_0=x_0, y_0=y_0, oversampling=oversample)
-                    l3_psf_science_model = create_l3_psf_model(
-                        psf_science_model,
-                        pixel_scale=reference_model.meta.wcsinfo.pixel_scale
-                        * 3600.0 ,  # wcsinfo is in degrees. Need arcsec
-                        pixfrac=reference_model.meta.resample.pixfrac,
-                        oversample=oversample,
-                        threshold=threshold,
-                    )
-                    #l3_psf_match_model,  l3_psf_match_image = create_l3_psf_model(psf_science_model, pixfrac=1, pixel_scale=reference_model.meta.wcsinfo.pixel_scale*3600)
-
-                    # Diagnostics
-                    # trim the l3_psf_image
-                    # the returned L3 PSF image contains many low values far in the wings that supply noise when the
-                    # FFT smoothing is applied. This supresses that source of noise. 
-                    #l3_psf_reference_image[l3_psf_reference_image < np.average(l3_psf_reference_image[:,0:260])*950.] = 0. 
-                    #n_sources = 1
-                    #shape = (885, 885)
-                    #param_ranges = {'amplitude': [1.00, 1.01], 'x_0': [442, 443], 'y_0': [442, 443]}
-                    #params = make_random_models_table(n_sources, param_ranges, seed=0)
-                    #model_shape = (15, 15)
-                    #l3_psf_match_image = make_model_image(shape, l3_psf_reference_model, params, model_shape=model_shape)
-                    #l3_psf_match_image = make_model_image(shape, l3_psf_match_model, params, model_shape=model_shape)
-                    #log.info(f'Writing science image psf, l3_psf_matched_{science_image_lambda}_image')
-                    np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_model.data)
+                    try:
+                        np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_model[1])
+                    except:
+                        np.save(f'l3_psf_matched_{science_image_lambda}_image', l3_psf_match_model.data)
+                        
                     #log.info(f'Writing reference image psf, l3_psf_matched_{science_image_lambda}_image')
-                    np.save(f'l3_psf_matched_{ref_lambda}_image', l3_psf_reference_model.data)
+                    try:
+                        np.save(f'l3_psf_matched_{ref_lambda}_image', l3_psf_reference_image_model[1])
+                    except:
+                        np.save(f'l3_psf_matched_{ref_lambda}_image', l3_psf_reference_image_model.data)
                     #pdb.set_trace()
+                    bkg_ref_img = RomanBackground(
+                        reference_image_model.data,
+                        box_size=self.bkg_boxsize,
+                        coverage_mask=mask, )
+                    reference_image_model.data -= bkg_ref_img.background
 
-                    fft_threshold = np.nanmedian(reference_model.data) * 0.1
+                    # try trimming the ref data
+                    reference_image_model.data = np.where(reference_image_model.data <0.0, 0.0, reference_image_model.data)
+
+                    fft_threshold = np.nanmedian(reference_image_model.data) * 0.01
+
                     # Convolved the reference image with the matched science image psf
                     data_conv = convolve_fft(
-                        reference_model.data>fft_threshold,
-                        l3_psf_match_model.data,
-                        #l3_psf_match_image,
+                        #reference_image_model.data>fft_threshold,
+                        reference_image_model.data,
+                        #l3_psf_match_model[1],
+                        matched_l3_psf,
                         mask=mask_ref,
                         preserve_nan=False,
                         nan_treatment='interpolate',
                         normalize_kernel=True)
                     #pdb.set_trace()
-                    np.save('convolved_refdata', data_conv)
+                    np.save(f'convolved_{ref_lambda}_refdata', data_conv.value)
+                    np.save('matched_l3_psf_refdata', matched_l3_psf)
                     #log.info(f"total match data before convolution {np.nansum(science_image_model.data)}")
                     #log.info(f"total match data after convolution {(np.nansum(science_image_model.data)-np.nansum(data_conv>0.))/np.nansum(data_conv>0.)}")
                     #log.info(f"%diff  after convolution {np.nansum(data_conv)}")
                     apcorr_ref = self.get_reference_file(science_image_model, "apcorr")
                     ee_spline = get_ee_spline(science_image_model, apcorr_ref)
                     # Clean up the FFT smoothed image to prevent crazy fluxes, e.g. negative or inifinite values
-                    reference_model.data = np.nan_to_num(data_conv, copy=True, nan=0.0)
+                    #reference_image_model.data = np.nan_to_num(data_conv, copy=True, nan=0.0)
                     log.info(f"Creating catalog for {science_filter_name} image")
                     # Run the catalog on the match image
                     science_image_optical_element = science_image_model.meta.instrument.optical_element
                     mask_match = make_mask(science_image_model)
+                    bkg_sci_img = RomanBackground(
+                        science_image_model.data,
+                        box_size=self.bkg_boxsize,
+                        coverage_mask=mask, )
+                    science_image_model.data -= bkg_sci_img.background
 
                     # Generate the photometry catalog for the science image
-                    catobj = RomanSourceCatalog(
+                    catobj_sci = RomanSourceCatalog(
                         science_image_model,
                         segment_img,
                         None,
@@ -454,18 +457,21 @@ class MultibandMosCatalog(RomanStep):
                         cat_type="dr_band",
                         ee_spline=ee_spline,
                     )
+                    #pdb.set_trace()
                     log.info(f"Adding {science_image_optical_element} to columns")
                     #add ref filter so that columns for redder image matching do not colide
-                    catobj.catalog = add_filter_to_colnames(catobj.catalog, science_image_optical_element)
-                    det_cat = join(det_cat, catobj.catalog, keys="label", join_type="outer")
+                    #catobj.catalog = add_filter_to_colnames(catobj.catalog, science_image_optical_element)
+                    cat = add_filter_to_colnames(catobj_sci.catalog, science_image_optical_element)
+                    det_cat = join(det_cat, cat, keys="label", join_type="outer")
 
                     # Run the catalog on the convolved reference image
                     #science_filter_name_ref = reference_image_model.meta.instrument.optical_element
-                    mask_ref = make_mask(reference_model)
-                    reference_model.data = data_conv
+                    mask_ref = make_mask(reference_image_model)
+                    reference_image_model.data = data_conv
                     # rerun the catalog on the matched smoothed reference image data
-                    catobj = RomanSourceCatalog(
-                        reference_model,
+                    #pdb.set_trace()
+                    catobj_ref = RomanSourceCatalog(
+                        reference_image_model,
                         segment_img,
                         None,
                         star_kernel_fwhm,
@@ -476,20 +482,24 @@ class MultibandMosCatalog(RomanStep):
                         cat_type="dr_band",
                         ee_spline=ee_spline,
                     )
+                    #pdb.set_trace()
 
                     # Replace the reference image data with the unconvolved data
-                    reference_model.data = reference_image_data
+                    reference_image_model.data = reference_image_data
                     # save the matched (convolved) ref data to matched_{ref_lambda}_{match_lambda}
                     filter_name_match = ref_filter_name+"_"+science_image_optical_element
                     log.info(f"Adding {filter_name_match} to columns")
-                    catobj.catalog = add_filter_to_colnames(catobj.catalog, filter_name_match)
-                    cat = prefix_matched(catobj)
+                    cat = prefix_matched(catobj_ref)
+                    cat_matched_ref = add_filter_to_colnames(cat, filter_name_match)
+                    #pdb.set_trace()
                     match_band = f'matched_kron_{filter_name_match}_flux'.lower()
                     ref_band = f'kron_{ref_filter_name}_flux'.lower()
                     log.info(f"Adding {match_band} to the catalog")
                     det_cat = join(det_cat, cat, keys="label", join_type="outer")
                     log.info(f'Adding correction column C_{filter_name_match} to the catalog')
-                    det_cat.add_column(det_cat[match_band]/det_cat[ref_band],
+                    #det_cat.add_column(det_cat[match_band]/det_cat[ref_band],
+                    #                   name=f'C_{filter_name_match}')
+                    det_cat.add_column(catobj.kron_flux/det_cat[ref_band],
                                        name=f'C_{filter_name_match}')
                     # find the columns to correct
                     cols_to_correct = [x for x in det_cat.colnames
@@ -510,4 +520,4 @@ class MultibandMosCatalog(RomanStep):
         # Put the resulting multiband catalog in the model
         cat_model.source_catalog = det_cat
 
-        return save_all_results(self, segment_img, cat_model, input_model=reference_model)
+        return save_all_results(self, segment_img, cat_model, input_model=reference_image_model)
