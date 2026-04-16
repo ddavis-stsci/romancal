@@ -125,7 +125,10 @@ class RomanSourceCatalog:
         self.fit_psf = fit_psf
         self.psf_model = psf_model
         self.mask = mask
-        self.detection_cat = detection_cat
+        if cat_type != 'forced_photom':
+            self.detection_cat = detection_cat
+        else:
+            self.detection_cat = self.model.src_table
         self.flux_unit_str = flux_unit
         self.flux_unit = u.Unit(self.flux_unit_str)
         self.cat_type = cat_type
@@ -574,7 +577,7 @@ class RomanSourceCatalog:
             flux_colnames = self.aper_colnames
             flux_colnames.extend(matched_other_colnames)
 
-        elif self.cat_type in ("dr_det", "forced_det"):
+        elif self.cat_type in ("dr_det", "forced_det", "forced_photometry"):
             flux_colnames = []
 
         else:
@@ -705,7 +708,7 @@ class RomanSourceCatalog:
             if self.fit_psf:
                 colnames.extend(psf_flags_colnames)
 
-        elif self.cat_type == "forced_det":
+        elif self.cat_type == "forced_det" or "forced_photometry":
             colnames = ["label"]  # needed to join the forced catalogs
             colnames.extend(base_colnames)
             colnames.extend(skybest_colnames)

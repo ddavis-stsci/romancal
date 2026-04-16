@@ -3,12 +3,13 @@ Module for the source catalog step.
 """
 
 from __future__ import annotations
+import pdb
 
 import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
-from astropy.table import join
+from astropy.table import join, Table
 from photutils.segmentation import SegmentationImage
 from roman_datamodels import datamodels
 from roman_datamodels.datamodels import ImageModel
@@ -55,6 +56,7 @@ class SourceCatalogStep(RomanStep):
         suffix = string(default='cat')        # Default suffix for output files
         fit_psf = boolean(default=True)       # fit source PSFs for accurate astrometry?
         forced_segmentation = string(default='')  # force the use of this segmentation map
+        forced_photometry = string(default='') #  Input catalog name for forced photometry
     """
 
     def process(self, dataset):
@@ -95,12 +97,12 @@ class SourceCatalogStep(RomanStep):
         # Initialize the source catalog model, copying the metadata
         # from the input model
         if isinstance(model, ImageModel):
-            if self.forced_segmentation:
+            if self.forced_segmentation or self.forced_photometry:
                 cat_model_cls = datamodels.ForcedImageSourceCatalogModel
             else:
                 cat_model_cls = datamodels.ImageSourceCatalogModel
         else:
-            if self.forced_segmentation:
+            if self.forced_segmentation or self.forced_photometry:
                 cat_model_cls = datamodels.ForcedMosaicSourceCatalogModel
             else:
                 cat_model_cls = datamodels.MosaicSourceCatalogModel
@@ -109,6 +111,7 @@ class SourceCatalogStep(RomanStep):
             "filename": model.meta.filename,
             "file_date": model.meta.file_date,
         }
+        
         # copy over the data release id since there is no association input
         if "data_release_id" in model.meta:
             cat_model.meta.data_release_id = model.meta.data_release_id
@@ -193,6 +196,66 @@ class SourceCatalogStep(RomanStep):
         )
         cat = catobj.catalog
 
+        # Forced psf catalog
+        # check to see if the forced_photometry variable is set if so set the flags so that the
+        # psf position and FWHM are fixed
+        if not self.forced_photometry == '':
+            cat_type = 'forced_photom'
+            model.meta.x_0_flag = True
+            model.meta.y_0_flag = True
+            model.meta.fwhm_flag = True
+
+            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
+            # what the later steps expect
+            try:
+                src_table = Table.read(self.forced_photometry)
+            except FileNotFoundError:
+                log.info("File not found or cannot be read")
+                exit()
+            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
+                src_table.x_centroid = src_table['x_centroid']
+            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
+                src_table.x_centroid = src_table['x']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+
+            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
+                src_table.x_centroid = src_table['y_centroid']
+            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
+                src_table.x_centroid = src_table['y']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+
+            #replace the detection cat from above with the input catalog (save format at the output parquet catalogs)
+            #it should really skip the detection catalog step above but for now...
+            model.src_table = src_table
+            log.info("Creating source catalog")
+            cat_type = "forced_photometry"
+            fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
+            catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type=cat_type,
+                ee_spline=ee_spline,
+            )
+            cat = catobj.catalog
+            # remove src table, need to discussion if this needs to be saved here but it just a duplicate of the input catalog if we
+            # want it here we'll have to add it to rad/rdm
+            if hasattr(model, 'src_table'):
+                delattr(model, 'src_table')
+                delattr(model.meta, 'x_0_flag')
+                delattr(model.meta, 'y_0_flag')
+                delattr(model.meta, 'fwhm_flag')
+            pdb.set_trace()
+        
         if self.forced_segmentation:
             # TODO: improve this so that the moment-based properties are
             # not recomputed from the forced_detection_image
