@@ -835,6 +835,11 @@ class PSFCatalog:
         sources.
         """
         xinit, yinit = np.transpose(self.xypos)
+        if hasattr(self.model.meta, 'x_0_flag'):
+            self.psf_model.x_0.fixed = True
+            self.psf_model.y_0.fixed = True
+            #self.psf_model.fwhm.fixed = True
+
         psf_photometry_table, _ = fit_psf_to_image_model(
             image_model=self.model,
             mask=self.mask,

@@ -4,6 +4,7 @@ Module to calculate the source catalog.
 
 import logging
 import re
+import pdb
 
 import astropy.units as u
 import numpy as np
@@ -578,8 +579,18 @@ class RomanSourceCatalog:
             flux_colnames = self.aper_colnames
             flux_colnames.extend(matched_other_colnames)
 
-        elif self.cat_type in ("dr_det", "forced_det", "forced_photometry"):
+        elif self.cat_type in ("dr_det", "forced_det"):
             flux_colnames = []
+            if self.fit_psf:
+                flux_colnames.extend(psf_colnames)
+                
+        elif self.cat_type =="forced_photometry":
+            flux_colnames = self.aper_colnames
+            if self.fit_psf:
+                flux_colnames.extend(psf_colnames)
+            flux_colnames.extend(other_colnames)
+            #pdb.set_trace()
+
 
         else:
             raise ValueError(f"Unknown catalog type: {self.cat_type}")
@@ -690,7 +701,7 @@ class RomanSourceCatalog:
         band_colnames.extend(self.flux_colnames)
         self.band_colnames = band_colnames
 
-        if self.cat_type in ("prompt", "forced_full"):
+        if self.cat_type in ("prompt", "forced_full", "forced_photometry"):
             colnames = []
             colnames.extend(base_colnames)
             colnames.extend(xywin_colnames)
@@ -709,7 +720,7 @@ class RomanSourceCatalog:
             if self.fit_psf:
                 colnames.extend(psf_flags_colnames)
 
-        elif self.cat_type == "forced_det" or "forced_photometry":
+        elif self.cat_type == "forced_det":
             colnames = ["label"]  # needed to join the forced catalogs
             colnames.extend(base_colnames)
             colnames.extend(skybest_colnames)
@@ -754,7 +765,8 @@ class RomanSourceCatalog:
             The updated source catalog.
         """
         # prefix all columns (except "label") with "forced_"
-        if self.cat_type == "forced_det":
+        #pdb.set_trace()
+        if (self.cat_type == "forced_det") or (self.cat_type == "forced_photometry"):
             for colname in catalog.colnames:
                 if colname != "label":
                     catalog.rename_column(colname, f"forced_{colname}")
@@ -764,7 +776,7 @@ class RomanSourceCatalog:
             for colname in [*self.band_colnames, "warning_flags"]:
                 if colname in catalog.colnames and colname != "label":
                     catalog.rename_column(colname, f"forced_{colname}")
-
+        #pdb.set_trace()
         return catalog
 
     @staticmethod

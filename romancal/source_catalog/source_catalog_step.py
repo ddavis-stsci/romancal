@@ -179,8 +179,47 @@ class SourceCatalogStep(RomanStep):
         apcorr_ref = self.get_reference_file(input_model, "apcorr")
         ee_spline = get_ee_spline(input_model, apcorr_ref)
 
+        # if we have an input source catalog read it
+        if not self.forced_photometry == '':
+            log.info("Reading forced Photometry catalog")
+            cat_type = 'forced_photom'
+
+            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
+            # what the later steps expect
+            try:
+                src_table = Table.read(self.forced_photometry)
+            except FileNotFoundError:
+                log.info("File not found or cannot be read")
+                exit()
+            list_to_remove = []
+            for i, entry in enumerate(src_table):
+                if np.nan in input_model.meta.wcs.outside_footprint([entry['ra_psf'], entry['dec_psf']] ):
+                    list_to_remove.append(i)
+
+            # if the list is not empty remove the rows that are not in the footprint
+            if list_to_remove:
+              src_table.remove_rows(list_to_remove)  
+
+            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
+                src_table.x_centroid = src_table['x_centroid']
+            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
+                src_table.x_centroid = src_table['x']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+
+            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
+                src_table.y_centroid = src_table['y_centroid']
+            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
+                src_table.y_centroid = src_table['y']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+        
+        
         log.info("Creating source catalog")
-        cat_type = "prompt" if not self.forced_segmentation else "forced_det"
+        cat_type = "prompt" if not self.forced_segmentation  else "forced_det"
+        #cat_type = "prompt" if not (self.forced_segmentation or self.forced_photometry)  else "forced_det"
         fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
         catobj = RomanSourceCatalog(
             model,
@@ -200,38 +239,16 @@ class SourceCatalogStep(RomanStep):
         # check to see if the forced_photometry variable is set if so set the flags so that the
         # psf position and FWHM are fixed
         if not self.forced_photometry == '':
+            log.info("Creating forced Photometry catalog")
             cat_type = 'forced_photom'
             model.meta.x_0_flag = True
             model.meta.y_0_flag = True
             model.meta.fwhm_flag = True
 
-            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
-            # what the later steps expect
-            try:
-                src_table = Table.read(self.forced_photometry)
-            except FileNotFoundError:
-                log.info("File not found or cannot be read")
-                exit()
-            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['x_centroid']
-            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['x']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
-            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['y_centroid']
-            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['y']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
             #replace the detection cat from above with the input catalog (save format at the output parquet catalogs)
             #it should really skip the detection catalog step above but for now...
-            model.src_table = src_table
             log.info("Creating source catalog")
+            model.src_table = src_table
             cat_type = "forced_photometry"
             fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
             catobj = RomanSourceCatalog(
@@ -246,7 +263,10 @@ class SourceCatalogStep(RomanStep):
                 cat_type=cat_type,
                 ee_spline=ee_spline,
             )
-            cat = catobj.catalog
+            cat_forced_photom = catobj.catalog
+            # Join the prompt catalog and the forced_photm catalog
+            cat = join(cat_forced_photom, cat, keys="label", join_type="outer")
+            #pdb.set_trace()
             # remove src table, need to discussion if this needs to be saved here but it just a duplicate of the input catalog if we
             # want it here we'll have to add it to rad/rdm
             if hasattr(model, 'src_table'):
@@ -254,7 +274,6 @@ class SourceCatalogStep(RomanStep):
                 delattr(model.meta, 'x_0_flag')
                 delattr(model.meta, 'y_0_flag')
                 delattr(model.meta, 'fwhm_flag')
-            pdb.set_trace()
         
         if self.forced_segmentation:
             # TODO: improve this so that the moment-based properties are
@@ -301,5 +320,10 @@ class SourceCatalogStep(RomanStep):
 
         # Put the resulting catalog table in the catalog model
         cat_model.source_catalog = cat
+        for item in cat_model.source_catalog.colnames:
+            if 'aper'  in item or 'psf' in item:
+                print(item)
+
+        #pdb.set_trace()
 
         return save_all_results(self, segment_img, cat_model, input_model=input_model)
