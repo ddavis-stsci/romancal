@@ -192,9 +192,10 @@ class SourceCatalogStep(RomanStep):
                 log.info("File not found or cannot be read")
                 exit()
             list_to_remove = []
-            for i, entry in enumerate(src_table):
-                if np.nan in input_model.meta.wcs.outside_footprint([entry['ra_psf'], entry['dec_psf']] ):
-                    list_to_remove.append(i)
+            if all(hasattr(src_table, attr) for attr in ["ra_psf", "dec_psf"]):
+                for i, entry in enumerate(src_table):
+                    if np.nan in input_model.meta.wcs.outside_footprint([entry['ra_psf'], entry['dec_psf']] ):
+                        list_to_remove.append(i)
 
             # if the list is not empty remove the rows that are not in the footprint
             if list_to_remove:
@@ -267,13 +268,6 @@ class SourceCatalogStep(RomanStep):
             # Join the prompt catalog and the forced_photm catalog
             cat = join(cat_forced_photom, cat, keys="label", join_type="outer")
             #pdb.set_trace()
-            # remove src table, need to discussion if this needs to be saved here but it just a duplicate of the input catalog if we
-            # want it here we'll have to add it to rad/rdm
-            if hasattr(model, 'src_table'):
-                delattr(model, 'src_table')
-                delattr(model.meta, 'x_0_flag')
-                delattr(model.meta, 'y_0_flag')
-                delattr(model.meta, 'fwhm_flag')
         
         if self.forced_segmentation:
             # TODO: improve this so that the moment-based properties are
@@ -320,10 +314,11 @@ class SourceCatalogStep(RomanStep):
 
         # Put the resulting catalog table in the catalog model
         cat_model.source_catalog = cat
+        # tmp print for diagnostics
         for item in cat_model.source_catalog.colnames:
             if 'aper'  in item or 'psf' in item:
                 print(item)
 
-        #pdb.set_trace()
+        pdb.set_trace()
 
         return save_all_results(self, segment_img, cat_model, input_model=input_model)
