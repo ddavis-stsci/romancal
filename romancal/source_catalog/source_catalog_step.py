@@ -45,7 +45,7 @@ class SourceCatalogStep(RomanStep):
 
     class_alias = "source_catalog"
 
-    reference_file_types: ClassVar = ["apcorr"]
+    reference_file_types: ClassVar = ["apcorr", "epsf"]
 
     spec = """
         bkg_boxsize = integer(default=1000)   # background mesh box size in pixels
@@ -194,25 +194,28 @@ class SourceCatalogStep(RomanStep):
             list_to_remove = []
             if all(hasattr(src_table, attr) for attr in ["ra_psf", "dec_psf"]):
                 for i, entry in enumerate(src_table):
-                    if np.nan in input_model.meta.wcs.outside_footprint([entry['ra_psf'], entry['dec_psf']] ):
+                    footprint_coords = input_model.meta.wcs.outside_footprint(
+                        [entry['ra_psf'], entry['dec_psf']]
+                    )
+                    if np.any(np.isnan(footprint_coords)):
                         list_to_remove.append(i)
 
             # if the list is not empty remove the rows that are not in the footprint
             if list_to_remove:
-              src_table.remove_rows(list_to_remove)  
+                src_table.remove_rows(list_to_remove)
 
-            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['x_centroid']
-            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['x']
+            if not hasattr(self, 'x_centroid') and 'x_centroid' in src_table.colnames:
+                self.x_centroid = src_table['x_centroid']
+            elif not hasattr(self, 'x_centroid') and 'x' in src_table.colnames:
+                self.x_centroid = src_table['x']
             else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                log.error("A position column, x or x_centroid is needed for processing, stopping")
                 return
 
-            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
-                src_table.y_centroid = src_table['y_centroid']
-            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
-                src_table.y_centroid = src_table['y']
+            if not hasattr(self, 'y_centroid') and 'y_centroid' in src_table.colnames:
+                self.y_centroid = src_table['y_centroid']
+            elif not hasattr(self, 'y_centroid') and 'y' in src_table.colnames:
+                self.y_centroid = src_table['y']
             else:
                 log.error("A position column, y or y_centroid is needed for processing, stopping")
                 return
@@ -316,7 +319,7 @@ class SourceCatalogStep(RomanStep):
         cat_model.source_catalog = cat
         # tmp print for diagnostics
         for item in cat_model.source_catalog.colnames:
-            if 'aper'  in item or 'psf' in item:
+            if 'aper'  in item or 'psf' in item or 'flagged_spatial_id' in item:
                 print(item)
 
         pdb.set_trace()
