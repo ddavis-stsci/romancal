@@ -20,6 +20,8 @@ from . import _config as config
 from ._generate import *
 from romancal.associations.lib.dms_base import DMSAttrConstraint
 from romancal.associations.lib.log_config import DMS_config, log_config
+from romancal.associations._pool import AssociationPool
+from romancal.associations._registry import AssociationRegistry
 
 from ._config import *
 from ._generate import *

@@ -1,5 +1,4 @@
 import copy
-import json
 import os
 
 import numpy as np
@@ -278,17 +277,34 @@ def test_tweakreg_flags_failed_step_on_invalid_catalog_columns(tweakreg_image):
         TweakRegStep.call([img])
 
 
-def test_tweakreg_skips_models_without_source_catalog(tmp_path, tweakreg_image):
-    """Test that TweakReg skips models that have no source catalog and processes
-    those that do, regardless of exposure type."""
-    img_with_catalog = tweakreg_image(catalog_filename="img0")
+def test_tweakreg_handles_mixed_exposure_types(tmp_path, tweakreg_image):
+    """Test that TweakReg can handle mixed exposure types
+    (non-WFI_IMAGE data will be marked as SKIPPED only and won't be processed)."""
+    invalid_types = [
+        "WFI_SPECTRAL",
+        "WFI_IM_DARK",
+        "WFI_SP_DARK",
+        "WFI_FLAT",
+        "WFI_LOLO",
+        "WFI_WFSC",
+        "WFI_DARK",
+        "WFI_GRISM",
+        "WFI_PRISM",
+    ]
 
-    img_no_catalog = tweakreg_image(catalog_filename="img1")
-    del img_no_catalog.meta["source_catalog"]
+    # start with 1 valid type
+    img = tweakreg_image(catalog_filename="img0")
+    imgs = [img]
 
-    res = TweakRegStep.call([img_with_catalog, img_no_catalog])
+    # add one of each invalid type
+    for i, invalid_type in enumerate(invalid_types):
+        img = tweakreg_image(catalog_filename=f"img{i + 1}")
+        img.meta.exposure.type = invalid_type
+        imgs.append(img)
 
-    assert len(res) == 2
+    res = TweakRegStep.call(imgs)
+
+    assert len(res) == len(imgs)
     with res:
         for i, m in enumerate(res):
             if i == 0:

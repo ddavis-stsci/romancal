@@ -45,5 +45,5 @@ from .skycell_asn import (
     _save_association,
     asn_from_list,
     parse_visitID,
-    run_skycell_asn,
+    skycell_asn,
 )

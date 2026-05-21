@@ -3,8 +3,6 @@
 Running the Pipeline
 ====================
 
-.. _running-the-pipeline-from-command-line:
-
 From the Command Line
 -----------------------------
 
@@ -69,8 +67,6 @@ Exit Status
 
  .. _intro_file_conventions:
 
-
-.. _running-the-pipeline-from-python:
 
 From the Python Prompt
 ------------------------------
