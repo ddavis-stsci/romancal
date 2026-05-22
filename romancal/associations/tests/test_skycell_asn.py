@@ -3,6 +3,7 @@
 import pytest
 
 import romancal.associations.skycell_asn as skycell_asn
+import romancal.associations.asn_from_list as asn_from_list
 from romancal.associations.skycell_asn import _cli, _create_groups, parse_visitID
 
 
@@ -125,7 +126,7 @@ def test_create_metadata(monkeypatch):
 
     dummy_asn_obj = DummyASN()
     monkeypatch.setattr(
-        skycell_asn.asn_from_list,
+        skycell_asn,
         "asn_from_list",
         lambda members, **kwargs: dummy_asn_obj,
     )
@@ -171,7 +172,7 @@ def test_cli_parsing(monkeypatch):
     """Test _cli parses arguments and calls skycell_asn with correct values."""
     called = {}
 
-    def fake_run_skycell_asn(filelist, output_file_root, product_type, data_release_id):
+    def fake_skycell_asn(filelist, output_file_root, product_type, data_release_id):
         called.update(
             {
                 "filelist": filelist,
@@ -181,7 +182,7 @@ def test_cli_parsing(monkeypatch):
             }
         )
 
-    monkeypatch.setattr(skycell_asn, "run_skycell_asn", fake_run_skycell_asn)
+    monkeypatch.setattr(skycell_asn, "skycell_asn", fake_skycell_asn)
     _cli_args = [
         "-o",
         "root",

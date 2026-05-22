@@ -12,7 +12,7 @@ from roman_datamodels import datamodels as rdm
 
 import romancal.skycell.match as sm
 import romancal.skycell.skymap as sc
-from romancal.associations import asn_from_list
+from romancal.associations.asn_from_list import asn_from_list
 from romancal.associations.lib.utilities import mk_level3_asn_name
 from romancal.lib.basic_utils import parse_visitID as parse_visitID
 
@@ -34,7 +34,7 @@ logger.addHandler(logging.NullHandler())
 logger.setLevel("INFO")
 
 
-def run_skycell_asn(
+def skycell_asn(
     filelist: list[str],
     output_file_root: os.PathLike | str,
     product_type: str,
@@ -252,9 +252,7 @@ def _create_metadata(
     dict
         Metadata dictionary for the association, ready for serialization.
     """
-    prompt_product_asn = asn_from_list.asn_from_list(
-        member_list, product_name=asn_file_name
-    )
+    prompt_product_asn = asn_from_list(member_list, product_name=asn_file_name)
     prompt_product_asn["asn_type"] = "image"
     try:
         program_id = parse_visitID(visit_id_no_r).get("Program", "")
@@ -503,7 +501,7 @@ def _cli(args=None):
     parsed = parser.parse_args(args=args)
     logger.info("Command-line arguments: %s", parsed)
 
-    run_skycell_asn(
+    skycell_asn(
         parsed.filelist,
         parsed.output_file_root,
         parsed.product_type,
