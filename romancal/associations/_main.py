@@ -20,8 +20,8 @@ from . import _config as config
 from ._generate import *
 from romancal.associations.lib.dms_base import DMSAttrConstraint
 from romancal.associations.lib.log_config import DMS_config, log_config
-from romancal.associations._pool import AssociationPool
-from romancal.associations._registry import AssociationRegistry
+from romancal.associations._pool import _AssociationPool
+from romancal.associations._registry import _AssociationRegistry
 
 from ._config import *
 from ._generate import *
@@ -148,7 +148,7 @@ class Main:
 
         if pool is None:
             logger.info(f"Reading pool {parsed.pool}")
-            pool = AssociationPool.read(
+            pool = _AssociationPool.read(
                 parsed.pool,
                 delimiter=parsed.delimiter,
                 format=parsed.pool_format,
@@ -180,7 +180,7 @@ class Main:
         elif parsed.asn_candidate_ids is not None:
             global_constraints = constrain_on_candidates(parsed.asn_candidate_ids)
 
-        self.rules = AssociationRegistry(
+        self.rules = _AssociationRegistry(
             parsed.rules,
             include_default=not parsed.ignore_default,
             global_constraints=global_constraints,
@@ -188,7 +188,7 @@ class Main:
         )
         if parsed.discover:
             self.rules.update(
-                AssociationRegistry(
+                _AssociationRegistry(
                     parsed.rules,
                     include_default=not parsed.ignore_default,
                     name=DISCOVER_RULESET,

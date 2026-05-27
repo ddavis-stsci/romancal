@@ -19,7 +19,7 @@ logger.addHandler(logging.NullHandler())
 _ASN_RULE = "association_rules.py"
 
 
-class AssociationRegistry(dict):
+class _AssociationRegistry(dict):
     """The available associations
 
     Parameters

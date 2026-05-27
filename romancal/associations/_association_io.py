@@ -8,7 +8,7 @@ import logging
 import numpy as np
 import yaml as yaml_lib
 
-from ._association import Association
+from ._association import _Association
 from ._exceptions import AssociationNotValidError
 from .lib.member import Member
 
@@ -29,7 +29,7 @@ class AssociationEncoder(json_lib.JSONEncoder):
             return obj.data
 
 
-@Association.ioregistry
+@_Association.ioregistry
 class json:
     """Load and store associations as JSON"""
 
@@ -99,7 +99,7 @@ class json:
         )
 
 
-@Association.ioregistry
+@_Association.ioregistry
 class yaml:
     """Load and store associations as YAML"""
 

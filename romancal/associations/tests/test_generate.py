@@ -1,8 +1,8 @@
 """Test basic generate operations"""
 
 from romancal.associations import (
-    AssociationPool,
-    AssociationRegistry,
+    _AssociationPool,
+    _AssociationRegistry,
     generate,
     load_asn,
 )
@@ -11,10 +11,10 @@ from romancal.associations.tests.helpers import t_path
 
 def test_simple():
     """Test generate on simple registry"""
-    registry = AssociationRegistry(
+    registry = _AssociationRegistry(
         [t_path("data/rules_basic.py")], include_default=False
     )
-    pool = AssociationPool()
+    pool = _AssociationPool()
     pool["value"] = ["row1", "row2"]
 
     asns = generate(pool, registry)

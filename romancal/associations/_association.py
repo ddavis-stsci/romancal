@@ -15,7 +15,7 @@ from ._exceptions import AssociationNotValidError
 from .lib.constraint import Constraint, meets_conditions
 from .lib.ioregistry import IORegistry
 
-__all__ = ["Association"]
+__all__ = ["_Association"]
 
 
 # Configure logging
@@ -26,7 +26,7 @@ logger.addHandler(logging.NullHandler())
 _TIMESTAMP_TEMPLATE = "%Y%m%dt%H%M%S"
 
 
-class Association(MutableMapping):
+class _Association(MutableMapping):
     """Association Base Class
 
     Parameters

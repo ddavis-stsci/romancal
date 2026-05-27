@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from stpipe.format_template import FormatTemplate
 
 from romancal.associations import libpath
-from romancal.associations._association import Association
+from romancal.associations._association import _Association
 from romancal.associations._exceptions import AssociationNotValidError
 from romancal.associations._registry import RegistryMarker
 from romancal.associations.lib.acid import ACID
@@ -96,7 +96,7 @@ LEVEL2B_EXPTYPES.extend(SPEC2_SCIENCE_EXP_TYPES)
 INVALID_AC_TYPES = ["background"]
 
 
-class DMS_ELPP_Base(DMSBaseMixin, Association):
+class DMS_ELPP_Base(DMSBaseMixin, _Association):
     """Basic class for DMS Level associations."""
 
     # Set the validation schema

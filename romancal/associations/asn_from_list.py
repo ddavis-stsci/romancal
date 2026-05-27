@@ -4,7 +4,7 @@ import argparse
 import sys
 from collections import OrderedDict
 
-from ._registry import AssociationRegistry
+from ._registry import _AssociationRegistry
 from .lib.rules_elpp_base import DMS_ELPP_Base
 
 __all__ = ["asn_from_list"]
@@ -191,7 +191,7 @@ def _cli(args=None):
     print("Parsed args:", parsed)
 
     # Get the rule
-    rule = AssociationRegistry(parsed.ruledefs, include_bases=True)[parsed.rule]
+    rule = _AssociationRegistry(parsed.ruledefs, include_bases=True)[parsed.rule]
 
     with open(parsed.output_file, "w") as outfile:
         asn = asn_from_list(
