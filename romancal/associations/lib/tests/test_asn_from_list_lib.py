@@ -2,7 +2,7 @@
 
 import pytest
 
-from romancal.associations import Association, load_asn
+from romancal.associations import _Association, load_asn
 from romancal.associations._exceptions import AssociationNotValidError
 from romancal.associations.asn_from_list import asn_from_list
 
@@ -10,8 +10,8 @@ from romancal.associations.asn_from_list import asn_from_list
 def test_base_association():
     """Create the simplest of associations"""
     items = ["a", "b", "c"]
-    asn = asn_from_list(items, rule=Association)
-    assert asn["asn_rule"] == "Association"
+    asn = asn_from_list(items, rule=_Association)
+    assert asn["asn_rule"] == "_Association"
     assert asn["asn_type"] == "None"
     assert asn["members"] == items
 
@@ -19,7 +19,7 @@ def test_base_association():
 def test_base_roundtrip():
     """Write/read created base association"""
     items = ["a", "b", "c"]
-    asn = asn_from_list(items, rule=Association)
+    asn = asn_from_list(items, rule=_Association)
     _, serialized = asn.dump()
     reloaded = load_asn(serialized, registry=None)
     assert asn["asn_rule"] == reloaded["asn_rule"]

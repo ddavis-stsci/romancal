@@ -3,7 +3,7 @@
 from functools import partial
 from os import path as os_path
 
-from ..associations import Association, _AssociationRegistry, libpath, load_asn
+from ..associations import _Association, _AssociationRegistry, libpath, load_asn
 from ..associations.asn_from_list import asn_from_list
 from ..associations.lib.rules_elpp_base import DMS_ELPP_Base
 from ..associations.lib.rules_level2 import Asn_Lv2Image
@@ -45,7 +45,7 @@ class LoadAsAssociation(dict):
         obj,
         meta=DEFAULT_ASN_META,
         registry=_AssociationRegistry,
-        rule=Association,
+        rule=_Association,
         product_name_func=None,
     ):
         """Load object and return an association of it

@@ -3,7 +3,7 @@
 from romancal.associations import (
     _AssociationPool,
     _AssociationRegistry,
-    generate,
+    _generate,
     load_asn,
 )
 from romancal.associations.tests.helpers import t_path
@@ -17,7 +17,7 @@ def test_simple():
     pool = _AssociationPool()
     pool["value"] = ["row1", "row2"]
 
-    asns = generate(pool, registry)
+    asns = _generate(pool, registry)
     assert len(asns) == 1
     assert len(asns[0]["members"]) == 2
 

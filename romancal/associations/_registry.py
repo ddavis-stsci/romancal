@@ -9,7 +9,7 @@ from . import libpath
 from ._exceptions import AssociationError, AssociationNotValidError
 from .lib.callback_registry import CallbackRegistry
 
-__all__ = ["AssociationRegistry", "RegistryMarker"]
+__all__ = ["_AssociationRegistry", "RegistryMarker"]
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -45,8 +45,8 @@ class _AssociationRegistry(dict):
     The general workflow is as follows:
 
         * Create the registry
-            >>> from romancal.associations._registry import AssociationRegistry
-            >>> registry = AssociationRegistry()
+            >>> from romancal.associations._registry import _AssociationRegistry
+            >>> registry = _AssociationRegistry()
 
         * Create associations from an item
             >>> associations, reprocess = registry.match(item) # doctest: +SKIP

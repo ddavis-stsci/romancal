@@ -17,14 +17,13 @@ import numpy as np
 from romancal.associations import __version__
 from ._config import *
 from . import _config as config
-from ._generate import *
+#from ._generate import *
+from ._generate import _generate
+from ._exceptions import AssociationError
 from romancal.associations.lib.dms_base import DMSAttrConstraint
 from romancal.associations.lib.log_config import DMS_config, log_config
 from romancal.associations._pool import _AssociationPool
 from romancal.associations._registry import _AssociationRegistry
-
-from ._config import *
-from ._generate import *
 
 __all__ = ["Main"]
 
@@ -96,7 +95,7 @@ class Main:
             A fully executed association generator.
         """
         generator_cli = cls(args=args, pool=pool)
-        generator_cli.generate()
+        generator_cli._generate()
         generator_cli.save()
         return generator_cli
 
@@ -195,11 +194,11 @@ class Main:
                 )
             )
 
-    def generate(self):
+    def _generate(self):
         """Generate the associations"""
         logger.info("Generating associations.")
         parsed = self.parsed
-        self.associations = generate(
+        self.associations = _generate(
             self.pool,
             self.rules,
             version_id=parsed.version_id,

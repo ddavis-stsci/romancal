@@ -15,10 +15,10 @@ from .lib.process_list import (
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-__all__ = ["generate"]
+__all__ = ["_generate"]
 
 
-def generate(pool, rules, version_id=None, finalize=True):
+def _generate(pool, rules, version_id=None, finalize=True):
     """Generate associations in the pool according to the rules.
 
     Parameters
