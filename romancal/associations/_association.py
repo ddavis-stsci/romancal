@@ -13,7 +13,7 @@ from stpipe.format_template import FormatTemplate
 from . import __version__
 from ._exceptions import AssociationNotValidError
 from .lib.constraint import Constraint, meets_conditions
-from .lib.ioregistry import IORegistry
+from .lib._ioregistry import IORegistry
 
 __all__ = ["_Association"]
 

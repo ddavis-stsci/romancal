@@ -17,7 +17,7 @@ from romancal.associations._exceptions import AssociationNotValidError
 from romancal.associations._registry import RegistryMarker
 from romancal.associations.lib.acid import ACID
 from romancal.associations.lib.constraint import Constraint, SimpleConstraint
-from romancal.associations.lib.counter import Counter
+from romancal.associations.lib._counter import Counter
 from romancal.associations.lib.dms_base import (
     _EMPTY,
     IMAGE2_NONSCIENCE_EXP_TYPES,
@@ -27,9 +27,9 @@ from romancal.associations.lib.dms_base import (
     DMSAttrConstraint,
     DMSBaseMixin,
 )
-from romancal.associations.lib.keyvalue_registry import KeyValueRegistryError
+from romancal.associations.lib._keyvalue_registry import KeyValueRegistryError
 from romancal.associations.lib.member import Member
-from romancal.associations.lib.process_list import ProcessList
+from romancal.associations.lib._process_list import ProcessList
 from romancal.associations.lib.product_utils import (
     prune_duplicate_associations,
     prune_duplicate_products,

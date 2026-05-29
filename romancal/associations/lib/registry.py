@@ -4,7 +4,7 @@
 import logging
 
 # If callback_registry is needed, migrate it as well
-# from romancal.associations.lib.callback_registry import CallbackRegistry
+# from romancal.associations.lib._callback_registry import CallbackRegistry
 
 __all__ = ["AssociationRegistry", "RegistryMarker"]
 

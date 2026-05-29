@@ -7,7 +7,7 @@ from romancal.associations.lib.constraint import (
     Constraint,
     SimpleConstraint,
 )
-from romancal.associations.lib.counter import Counter
+from romancal.associations.lib._counter import Counter
 from romancal.associations.lib.utilities import getattr_from_list
 
 __all__ = ["Constraint_TargetAcq", "Constraint_WFSC", "DMSBaseMixin"]
