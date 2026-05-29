@@ -7,7 +7,7 @@ from os.path import basename, expanduser, expandvars
 
 from . import libpath
 from ._exceptions import AssociationError, AssociationNotValidError
-from .lib.callback_registry import CallbackRegistry
+from .lib.callback_registry import _CallbackRegistry
 
 __all__ = ["_AssociationRegistry", "RegistryMarker"]
 
@@ -74,7 +74,7 @@ class _AssociationRegistry(dict):
         self.name = name
 
         # Callback registry
-        self.callback = CallbackRegistry()
+        self.callback = _CallbackRegistry()
 
         # Precache the set of rules
         self._rule_set = set()
