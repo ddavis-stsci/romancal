@@ -1,5 +1,6 @@
 import copy
 import os
+import json
 
 import numpy as np
 import pyarrow.parquet as pq
