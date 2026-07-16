@@ -4,11 +4,12 @@ Module for the source catalog step.
 
 from __future__ import annotations
 
+import pdb
 import logging
 from typing import TYPE_CHECKING
 
 import numpy as np
-from astropy.table import join
+from astropy.table import join, Table
 from photutils.segmentation import SegmentationImage
 from roman_datamodels import datamodels
 from roman_datamodels.datamodels import ImageModel
@@ -86,6 +87,7 @@ class SourceCatalogStep(RomanStep):
         suffix = string(default='cat')        # Default suffix for output files
         fit_psf = boolean(default=True)       # fit source PSFs for accurate astrometry?
         forced_segmentation = string(default='')  # force the use of this segmentation map
+        forced_photometry = string(default='') #  Input catalog name for forced photometry
     """
 
     def save_model(self, model, **kwargs):
@@ -177,6 +179,7 @@ class SourceCatalogStep(RomanStep):
 
         log.info("Detecting sources")
         if not self.forced_segmentation:
+            #pdb.set_trace()
             segment_img = make_segmentation_image(
                 detection_image,
                 snr_threshold=self.snr_threshold,
@@ -211,6 +214,58 @@ class SourceCatalogStep(RomanStep):
         log.info("Creating ee_fractions model")
         apcorr_ref = self.get_reference_file(input_model, "apcorr")
         ee_spline = get_ee_spline(input_model, apcorr_ref)
+
+        #pdb.set_trace()
+        # Forced psf catalog
+        # check to see if the forced_photometry variable is set if so set the flags so that the
+        # psf position and FWHM are fixed
+        if not self.forced_photometry == '':
+            cat_type = 'forced_photometry'
+            model.meta.x_0_flag = True
+            model.meta.y_0_flag = True
+            model.meta.fwhm_flag = True
+
+            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
+            # what the later steps expect
+            try:
+                src_table = Table.read(self.forced_photometry)
+            except FileNotFoundError:
+                log.info("File not found or cannot be read")
+                exit()
+            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
+                src_table.x_centroid = src_table['x_centroid']
+            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
+                src_table.x_centroid = src_table['x']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+
+            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
+                src_table.x_centroid = src_table['y_centroid']
+            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
+                src_table.x_centroid = src_table['y']
+            else:
+                log.error("A position column, y or y_centroid is needed for processing, stopping")
+                return
+
+            model.src_table = src_table
+            #self.model.fixed{'flux': False, 'x_0': True, 'y_0': True, 'fwhm': True}
+            pdb.set_trace()
+            catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                None,
+                self.kernel_fwhm,
+                fit_psf=False,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type=cat_type,
+                ee_spline=ee_spline,
+            )
+            cat = catobj.catalog
+
+        pdb.set_trace()
 
         log.info("Creating source catalog")
         cat_type = "prompt" if not self.forced_segmentation else "forced_det"

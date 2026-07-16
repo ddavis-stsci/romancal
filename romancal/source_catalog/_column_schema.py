@@ -85,7 +85,7 @@ class CatalogSchema:
             flux_colnames = list(self.aper_colnames)
             flux_colnames.extend(matched_other_colnames)
 
-        elif self.cat_type in ("dr_det", "forced_det"):
+        elif self.cat_type in ("dr_det", "forced_det", "forced_photometry"):
             flux_colnames = []
 
         else:
@@ -215,7 +215,7 @@ class CatalogSchema:
         det_colnames.extend(shape_colnames)
         det_colnames.extend(nn_colnames)
 
-        if self.cat_type in ("prompt", "forced_full"):
+        if self.cat_type in ("prompt", "forced_full", "forced_photometry"):
             colnames = []
             colnames.extend(base_colnames)
             colnames.extend(xywin_colnames)
