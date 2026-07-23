@@ -2,6 +2,7 @@
 Module to calculate PSF photometry.
 """
 
+import pdb
 import logging
 import warnings
 from collections import OrderedDict
@@ -687,6 +688,21 @@ class _PSFCatalog:
         """
         # Define minimum separation before sources are fit simultaneously
         grouper = SourceGrouper(min_separation=5)  # pixels
+
+        # For forced photometry fix the x and y positions of the PSF model to the input values
+        if hasattr(self.model.meta, 'x_0_flag'):
+            #pdb.set_trace()
+            if self.model.meta.x_0_flag:
+                self.psf_model.x_0.fixed = True
+            else:
+                self.psf_model.x_0.fixed = False
+                
+            if self.model.meta.y_0_flag:
+                self.psf_model.y_0.fixed = True
+            else:
+                self.psf_model.y_0.fixed = False
+
+        
         psfphot = PSFPhotometry(
             self.psf_model, fit_shape, grouper=grouper, aperture_radius=fit_shape[0]
         )
