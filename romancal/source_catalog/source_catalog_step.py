@@ -74,6 +74,7 @@ class SourceCatalogStep(RomanStep):
         in place of fresh source detection (forced photometry mode).
     """
 
+    #pdb.set_trace()
     class_alias = "source_catalog"
 
     reference_file_types: ClassVar = ["apcorr"]
@@ -114,6 +115,7 @@ class SourceCatalogStep(RomanStep):
         # strip the index since these all have different extensions
         kwargs.pop("idx")
 
+        #pdb.set_trace()
         return super().save_model(model, **kwargs)
 
     def process(self, dataset):
@@ -178,6 +180,7 @@ class SourceCatalogStep(RomanStep):
         )
 
         log.info("Detecting sources")
+        #pdb.set_trace()
         if not self.forced_segmentation:
             #pdb.set_trace()
             segment_img = make_segmentation_image(
@@ -189,7 +192,7 @@ class SourceCatalogStep(RomanStep):
                 mask=mask,
             )
             segmentation_model["detection_image"] = detection_image
-        else:
+        elif self.forced_segmentation:
             forced_segmodel = datamodels.open(self.forced_segmentation)
             # forced_segmodel.data is asdf.tags.core.ndarray.NDArrayType
             forced_segimg = forced_segmodel.data[...]
@@ -250,7 +253,7 @@ class SourceCatalogStep(RomanStep):
 
             model.src_table = src_table
             #self.model.fixed{'flux': False, 'x_0': True, 'y_0': True, 'fwhm': True}
-            pdb.set_trace()
+            #pdb.set_trace()
             catobj = RomanSourceCatalog(
                 model,
                 cat_model,
@@ -265,10 +268,16 @@ class SourceCatalogStep(RomanStep):
             )
             cat = catobj.catalog
 
-        pdb.set_trace()
+        #pdb.set_trace()
 
         log.info("Creating source catalog")
-        cat_type = "prompt" if not self.forced_segmentation else "forced_det"
+        if self.forced_photometry == '':
+            cat_type = 'prompt'
+        else:
+            cat_type = 'forced_det'
+        if self.forced_photometry:
+            cat_type= 'forced_photometry'
+        #cat_type = "prompt" if not (self.forced_segmentation or self.forced_photometry) else "forced_det"
         fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
         catobj = RomanSourceCatalog(
             model,
@@ -283,6 +292,7 @@ class SourceCatalogStep(RomanStep):
             ee_spline=ee_spline,
         )
         cat = catobj.catalog
+        #pdb.set_trace()
 
         if self.forced_segmentation:
             # TODO: improve this so that the moment-based properties are
@@ -328,6 +338,66 @@ class SourceCatalogStep(RomanStep):
             forced_cat.meta = None  # redundant with cat.meta
             cat = join(forced_cat, cat, keys="label", join_type="outer")
 
+        if self.forced_photometry:
+            forced_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=self.fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type="forced_full",
+                ee_spline=ee_spline,
+            )
+
+            # We have two catalogs, both using the same segmentation
+            # image. We want:
+            # - the original shape parameters computed from
+            #   the forced detection image.  These are needed to
+            #   describe where we have computed the forced photometry.
+            #   These keep their original names to match up with the deep
+            #   catalog used for forcing.
+            # - the newly measured fluxes and flags and sharpness
+            #   / roundness from the direct image; these give the new fluxes
+            #   at these locations
+            #   These gain a forced_ prefix.
+            # - the shapes measured from the new detection image.  These
+            #   seem to me to have less value but are explicitly called out in
+            #   a requirement, and it's not crazy to compute new centroids and
+            #   moments.
+            #   These gain a forced_prefix.
+            # At the end of the day you get a whole new catalog with the forced_
+            # prefix, plus some shape parameters that duplicate values in the
+            # original catalog used for forcing.
+
+            # merge the two forced catalogs
+            forced_cat = forced_catobj.catalog
+            forced_cat.meta = None  # redundant with cat.meta
+            cat = join(forced_cat, cat, keys="label", join_type="outer")
+
+            # reset the model to fit the psf  parameters
+            self.forced_photometry = ''
+            #pdb.set_trace()
+            model.meta.x_0_flag = False
+            model.meta.y_0_flag = False
+            model.meta.fwhm_flag = False
+            floating_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=self.fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type="prompt",
+                ee_spline=ee_spline,
+            )
+            prompt_cat = floating_catobj.catalog
+            cat = join(prompt_cat, cat, keys="label", join_type="outer")
+
         # Put the resulting catalog table in the catalog model
         cat_model.source_catalog = cat
 
@@ -343,14 +413,15 @@ class SourceCatalogStep(RomanStep):
         return cat_model, segmentation_model
 
     def _make_catalog_and_segmentation_models(self, model):
+        #pdb.set_trace()
         if isinstance(model, ImageModel):
-            if self.forced_segmentation:
+            if (self.forced_segmentation or self.forced_photometry):
                 cat_model_cls = datamodels.ForcedImageSourceCatalogModel
             else:
                 cat_model_cls = datamodels.ImageSourceCatalogModel
             segmentation_model_cls = datamodels.SegmentationMapModel
         else:
-            if self.forced_segmentation:
+            if (self.forced_segmentation or self.forece_photometry):
                 cat_model_cls = datamodels.ForcedMosaicSourceCatalogModel
             else:
                 cat_model_cls = datamodels.MosaicSourceCatalogModel
@@ -366,7 +437,7 @@ class SourceCatalogStep(RomanStep):
             cat_model.meta.data_release_id = model.meta.data_release_id
 
         # make L3 metadata
-        if self.forced_segmentation:
+        if (self.forced_segmentation or self.forced_photometry):
             cat_model.meta.image.forced_segmentation = self.forced_segmentation
 
         segmentation_model = segmentation_model_cls.create_minimal(
