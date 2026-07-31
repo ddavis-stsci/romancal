@@ -78,7 +78,6 @@ class SourceCatalogStep(RomanStep):
         in place of a computed source catalog (forced photometry mode).
     """
 
-    #pdb.set_trace()
     class_alias = "source_catalog"
 
     reference_file_types: ClassVar = ["apcorr"]
@@ -119,7 +118,6 @@ class SourceCatalogStep(RomanStep):
         # strip the index since these all have different extensions
         kwargs.pop("idx")
 
-        pdb.set_trace()
         return super().save_model(model, **kwargs)
 
     def process(self, dataset):
@@ -185,7 +183,6 @@ class SourceCatalogStep(RomanStep):
         )
 
         log.info("Detecting sources")
-        #pdb.set_trace()
         if not self.forced_segmentation:
             segment_img = make_segmentation_image(
                 detection_image,
@@ -239,7 +236,6 @@ class SourceCatalogStep(RomanStep):
             ee_spline=ee_spline,
         )
         prompt_cat = prompt_catobj.catalog
-        #pdb.set_trace()
 
         # Forced psf catalog
         # check to see if the forced_photometry variable is set if so set the flags so that the
@@ -294,7 +290,6 @@ class SourceCatalogStep(RomanStep):
             # merge the forced photometry and prompt catalogs
             forced_cat = forced_catobj.catalog
             forced_cat.meta = None  # redundant with cat.meta
-            #pdb.set_trace()
             # remove some duplicate/unneeded columns from the forced catalog
             log.info("Removing duplicate/unneeded columns from the forced catalog")
             cols_to_remove = ['forced_x_psf', 'forced_x_psf_err', 'forced_y_psf', 'forced_y_psf_err',
@@ -305,17 +300,12 @@ class SourceCatalogStep(RomanStep):
                               'orientation_sky', 'dust_ebv', 'nn_label', 'nn_distance', 'flagged_spatial_id', 'x_centroid', 'y_centroid',
                               'x_centroid_err', 'y_centroid_err', 'x_centroid_win', 'y_centroid_win', 'x_centroid_win_err',
                               'y_centroid_win_err', 'kron_radius']
-            #for item in cols_to_remove:
-            #    forced_cat.remove_column(item)
+            for item in cols_to_remove:
+                forced_cat.remove_column(item)
             cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-            pdb.set_trace()
 
         log.info("Creating source catalog")
-        #if self.forced_photometry == '':
-        #    cat_type = 'prompt'
-        #else:
-        #    cat_type = 'forced_det'
-        #pdb.set_trace()
+
         if self.forced_segmentation:
             # TODO: improve this so that the moment-based properties are
             # not recomputed from the forced_detection_image
@@ -323,7 +313,6 @@ class SourceCatalogStep(RomanStep):
             # record detection image used
             segmentation_model["detection_image"] = forced_detection_image
             log.info("Creating source catalog for forced segmentation")
-            #pdb.set_trace()
             forced_catobj = RomanSourceCatalog(
                 model,
                 cat_model,
@@ -362,11 +351,9 @@ class SourceCatalogStep(RomanStep):
             #forced_cat = forced_catobj.catalog
             #forced_cat.meta = None  # redundant with cat.meta
             #cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-            #pdb.set_trace()
 
             # reset the model to fit the psf  parameters
             self.forced_photometry = ''
-            #pdb.set_trace()
             model.meta.x_0_flag = False
             model.meta.y_0_flag = False
             model.meta.fwhm_flag = False
@@ -386,10 +373,12 @@ class SourceCatalogStep(RomanStep):
             floating_cat = floating_catobj.catalog
             forced_cat.meta = None  # redundant with cat.meta
             cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
-            pdb.set_trace()
 
         # Put the resulting catalog table in the catalog model
-        cat_model.source_catalog = cat
+        if cat_type == "prompt" :
+            cat_model.source_catalog = prompt_cat
+        elif "forced" in cat_type:
+            cat_model.source_catalog = cat
 
         # Set the data and detection image
         segmentation_model.data = segment_img.data.astype(np.uint32)
@@ -403,7 +392,6 @@ class SourceCatalogStep(RomanStep):
         return cat_model, segmentation_model
 
     def _make_catalog_and_segmentation_models(self, model):
-        #pdb.set_trace()
         if isinstance(model, ImageModel):
             if (self.forced_segmentation or self.forced_photometry):
                 cat_model_cls = datamodels.ForcedImageSourceCatalogModel
