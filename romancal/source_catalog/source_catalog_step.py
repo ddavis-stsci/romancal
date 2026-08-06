@@ -4,10 +4,10 @@ Module for the source catalog step.
 
 from __future__ import annotations
 
-import pdb
 import logging
 from typing import TYPE_CHECKING
 
+import pdb
 import numpy as np
 from astropy.table import join, Table
 from photutils.segmentation import SegmentationImage
@@ -198,12 +198,13 @@ class SourceCatalogStep(RomanStep):
             forced_segimg = forced_segmodel.data[...]
 
             # Remove fully masked segments
-            unmasked_sources = np.unique(forced_segimg * (mask == 0))
-            fully_masked_sources = set(np.unique(forced_segimg)) - set(unmasked_sources)
-            forced_segimg_mask = np.isin(
-                forced_segimg, np.array(list(fully_masked_sources))
+            all_sources = np.unique(forced_segimg)
+            unmasked_sources = np.unique(forced_segimg[~mask])
+            fully_masked_sources = np.setdiff1d(
+                all_sources, unmasked_sources, assume_unique=True
             )
-            forced_segimg[forced_segimg_mask] = 0
+            if fully_masked_sources.size:
+                forced_segimg[np.isin(forced_segimg, fully_masked_sources)] = 0
             segment_img = SegmentationImage(forced_segimg)
 
         # Return an empty segmentation image and catalog table if no
@@ -218,31 +219,33 @@ class SourceCatalogStep(RomanStep):
         apcorr_ref = self.get_reference_file(input_model, "apcorr")
         ee_spline = get_ee_spline(input_model, apcorr_ref)
 
-        log.info("Creating source catalog")
         cat_type = "prompt" if not self.forced_segmentation else "forced_det"
-        fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
-        prompt_catobj = RomanSourceCatalog(
-            model,
-            cat_model,
-            segment_img,
-            detection_image,
-            self.kernel_fwhm,
-            fit_psf=fit_psf,
-            psf_model=psf_model,
-            mask=mask,
-            cat_type=cat_type,
-            ee_spline=ee_spline,
-        )
-        prompt_cat = prompt_catobj.catalog
+        prompt_cat = None
+        if (not self.forced_segmentation) or self.forced_photometry:
+            log.info("Creating source catalog")
+            fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
+            prompt_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type=cat_type,
+                ee_spline=ee_spline,
+            )
+            prompt_cat = prompt_catobj.catalog
 
         # Forced psf catalog
         # check to see if the forced_photometry variable is set if so set the flags so that the
         # psf position and FWHM are fixed
         if self.forced_photometry:
             cat_type = 'forced_photometry'
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
+            model.meta.x_0_flag = True
+            model.meta.y_0_flag = True
+            model.meta.fwhm_flag = True
             # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
             # what the later steps expect
             try:
@@ -280,26 +283,14 @@ class SourceCatalogStep(RomanStep):
                 fit_psf=self.fit_psf,
                 psf_model=psf_model,
                 mask=mask,
-                cat_type="forced_full",
+                cat_type="forced_det",
                 ee_spline=ee_spline,
             )
-            forced_cat = forced_catobj.catalog
-
             # merge the forced photometry and prompt catalogs
             forced_cat = forced_catobj.catalog
             forced_cat.meta = None  # redundant with cat.meta
             # remove some duplicate/unneeded columns from the forced catalog
             log.info("Removing duplicate/unneeded columns from the forced catalog")
-            cols_to_remove = ['forced_x_psf', 'forced_x_psf_err', 'forced_y_psf', 'forced_y_psf_err',
-                              'forced_ra_psf', 'forced_dec_psf', 'forced_ra_psf_err', 'forced_dec_psf_err', 'ra', 'dec', 'ra_centroid', 
-                              'dec_centroid', 'ra_centroid_err', 'dec_centroid_err', 'ra_centroid_win', 'dec_centroid_win', 
-                              'ra_centroid_win_err', 'dec_centroid_win_err', 'cxx', 'cxy', 'cyy', 'bbox_xmin', 'bbox_xmax', 'bbox_ymin',
-                              'bbox_ymax', 'image_flags', 'segment_area', 'semimajor', 'semiminor', 'fwhm', 'ellipticity', 'orientation_pix',
-                              'orientation_sky', 'dust_ebv', 'nn_label', 'nn_distance', 'flagged_spatial_id', 'x_centroid', 'y_centroid',
-                              'x_centroid_err', 'y_centroid_err', 'x_centroid_win', 'y_centroid_win', 'x_centroid_win_err',
-                              'y_centroid_win_err', 'kron_radius']
-            for item in cols_to_remove:
-                forced_cat.remove_column(item)
             cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
 
         log.info("Creating source catalog")
@@ -325,6 +316,26 @@ class SourceCatalogStep(RomanStep):
             )
             forced_cat = forced_catobj.catalog
 
+           # reset the model to fit the psf  parameters
+            self.forced_photometry = ''
+            model.meta.x_0_flag = False
+            model.meta.y_0_flag = False
+            model.meta.fwhm_flag = False
+            log.info("Creating floating source catalog")
+            floating_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=self.fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type="forced_full",
+                ee_spline=ee_spline,
+            )
+            floating_cat = floating_catobj.catalog
+
             # We have two catalogs, both using the same segmentation
             # image. We want:
             # - the original shape parameters computed from
@@ -344,31 +355,7 @@ class SourceCatalogStep(RomanStep):
             # At the end of the day you get a whole new catalog with the forced_
             # prefix, plus some shape parameters that duplicate values in the
             # original catalog used for forcing.
-
-            # merge the two forced catalogs
-            #forced_cat = forced_catobj.catalog
-            #forced_cat.meta = None  # redundant with cat.meta
-            #cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-
-            # reset the model to fit the psf  parameters
-            self.forced_photometry = ''
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
-            log.info("Creating floating source catalog")
-            floating_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_full",
-                ee_spline=ee_spline,
-            )
-            floating_cat = floating_catobj.catalog
+            
             forced_cat.meta = None  # redundant with cat.meta
             cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
 

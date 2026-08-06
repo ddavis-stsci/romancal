@@ -17,8 +17,8 @@ class CatalogSchema:
     ----------
     cat_type : str
         The catalog type. One of ``"prompt"``, ``"dr_det"``,
-        ``"dr_band"``, ``"psf_matched"``, ``"forced_full"``, or
-        ``"forced_det"``.
+        ``"dr_band"``, ``"psf_matched"``, ``"forced_full"``,
+        ``"forced_det"``, or ``"forced_photmetry"``.
 
     fit_psf : bool
         If `True`, include PSF-related columns in the schema.
@@ -54,7 +54,6 @@ class CatalogSchema:
         """
         An ordered list of the flux column names.
         """
-        #pdb.set_trace()
         other_colnames = [
             "segment_flux",
             "segment_flux_err",
@@ -76,7 +75,6 @@ class CatalogSchema:
             "kron_flux_err",
         ]
 
-        #pdb.set_trace()
         if self.cat_type in ("prompt", "forced_full", "dr_band"):
             flux_colnames = list(self.aper_colnames)
             if self.fit_psf:
@@ -87,17 +85,9 @@ class CatalogSchema:
             flux_colnames = list(self.aper_colnames)
             flux_colnames.extend(matched_other_colnames)
 
-        #elif self.cat_type in ("dr_det", "forced_det"):
         elif self.cat_type in ("dr_det", "forced_det", "forced_photometry"):
             flux_colnames = []
 
-        #elif self.cat_type =="forced_photometry":
-        #    pdb.set_trace()
-        #    flux_colnames = self.aper_colnames
-        #    if self.fit_psf:
-        #        flux_colnames.extend(psf_colnames)
-        #    flux_colnames.extend(other_colnames)
-            
         else:
             raise ValueError(f"Unknown catalog type: {self.cat_type}")
 
@@ -254,17 +244,6 @@ class CatalogSchema:
             colnames.extend(sky_colnames)
             colnames.extend(shape_colnames)
             colnames.extend(nn_colnames)
-
-        #elif self.cat_type == "forced_photometry":
-        #    colnames = ["label"]  # needed to join the forced catalogs
-        #    colnames.extend(base_colnames)
-        #    colnames.extend(skybest_colnames)
-        #    colnames.extend(sky_colnames)
-        #    #colnames.extend(self.flux_colnames)
-        #    #colnames.extend(othershape_colnames)
-        #    colnames.extend(shape_colnames)
-        #    colnames.extend(nn_colnames)
-        #    pdb.set_trace()
 
         elif self.cat_type == "dr_det":
             colnames = []
