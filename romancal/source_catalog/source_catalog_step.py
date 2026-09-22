@@ -340,11 +340,6 @@ class SourceCatalogStep(RomanStep):
             # prefix, plus some shape parameters that duplicate values in the
             # original catalog used for forcing.
 
-            # merge the two forced catalogs
-            #forced_cat = forced_catobj.catalog
-            #forced_cat.meta = None  # redundant with cat.meta
-            #cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-
             # reset the model to fit the psf  parameters
             self.forced_photometry = ''
             model.meta.x_0_flag = False
