@@ -76,10 +76,6 @@ class SourceCatalogStep(RomanStep):
     forced_segmentation : str, optional
         If non-empty, path to a pre-computed segmentation image to use
         in place of fresh source detection (forced photometry mode).
-
-    forced_photometry : str, optional
-        If non-empty, path to a pre-computed source catalog to use
-        in place of a computed source catalog (forced photometry mode).
     """
 
     class_alias = "source_catalog"
@@ -318,7 +314,7 @@ class SourceCatalogStep(RomanStep):
         log.info("Creating source catalog")
         cat_type = "prompt" if not self.forced_segmentation else "forced_det"
         fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
-        prompt_catobj = RomanSourceCatalog(
+        catobj = RomanSourceCatalog(
             model,
             cat_model,
             segment_img,
@@ -330,105 +326,7 @@ class SourceCatalogStep(RomanStep):
             cat_type=cat_type,
             ee_spline=ee_spline,
         )
-        prompt_cat = prompt_catobj.catalog
-
-        # Forced psf catalog
-        # check to see if the forced_photometry variable is set if so set the flags so that the
-        # psf position and FWHM are fixed
-        if self.forced_photometry:
-            cat_type = 'forced_photometry'
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
-            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
-            # what the later steps expect
-            try:
-                src_table = Table.read(self.forced_photometry)
-            except FileNotFoundError:
-                log.info("File not found or cannot be read")
-                exit()
-            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['x_centroid']
-            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['x']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
-            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['y_centroid']
-            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['y']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
-            model.src_table = src_table
-
-            log.info("Creating forced postion source catalog")
-            fit_psf = self.fit_psf & (not self.forced_segmentation)  # skip when forced
-            log.info(f"fit_psf={fit_psf}, cat_type={cat_type}")
-            forced_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                None,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_photometry",
-                ee_spline=ee_spline,
-            )
-            #forced_cat = forced_catobj.catalog
-
-            # merge the forced photometry and prompt catalogs
-            forced_cat = forced_catobj.catalog
-            #pdb.set_trace()
-            forced_cat.meta = None  # redundant with cat.meta
-            # remove some duplicate/unneeded columns from the forced catalog
-            log.info("Removing duplicate/unneeded columns from the forced catalog")
-            forced_cols_to_remove = ['forced_ra_centroid', 'forced_dec_centroid', 'forced_ra_centroid_err',
-                                'forced_dec_centroid_err', 'forced_semimajor', 'forced_semiminor',
-                                'forced_fwhm', 'forced_ellipticity', 'forced_orientation_pix',
-                                'forced_orientation_sky', 'forced_cxx', 'forced_cxy', 'forced_cyy',
-                                'forced_kron_radius', 'forced_nn_label', 'forced_nn_distance',
-                                'flagged_spatial_id', 'x_centroid', 'y_centroid', 'x_centroid_err',
-                                'y_centroid_err', 'x_centroid_win', 'y_centroid_win',
-                                'x_centroid_win_err', 'y_centroid_win_err', 'ra_centroid',
-                                'dec_centroid', 'ra_centroid_err', 'dec_centroid_err',
-                                'ra_centroid_win', 'dec_centroid_win', 'ra_centroid_win_err',
-                                'dec_centroid_win_err', 'bbox_xmin', 'bbox_xmax', 'bbox_ymin',
-                                'bbox_ymax', 'segment_area', 'semimajor', 'semiminor', 'fwhm',
-                                'ellipticity', 'orientation_pix', 'orientation_sky', 'cxx', 'cxy',
-                                'cyy', 'kron_radius', 'nn_label', 'nn_distance', 'sharpness',
-                                'roundness1', 'is_extended', 'fluxfrac_radius_50', 'segment_flux',
-                                'segment_flux_err', 'kron_flux', 'kron_flux_err', 'kron_abmag',
-                                'kron_abmag_err', 'dust_ebv']
-            extra_cols_to_remove = ['ra','dec','x_centroid', 'y_centroid', 
-                                    'x_centroid_win', 'y_centroid_win', 'x_centroid_win_err',
-                                    'y_centroid_win_err', 'kron_radius', 'nn_label', 'nn_distance',
-                                    'segment_flux', 'segment_flux_err', 'kron_radius', 'kron_flux', 'kron_flux_err',
-                                    'is_extended', 'sharpness', 'roundness1', 'fluxfrac_radius_50',
-                                    'bbox_xmin', 'bbox_xmax', 'bbox_ymin', 'bbox_ymax', 'segment_area', 'segment_flux',
-                                    'forced_segment_flux', 'forced_segment_flux_err', 'forced_kron_flux',
-                                    'forced_kron_flux_err','kron_abmag', 'kron_abmag_err', 'dust_ebv',
-                                    'forced_x_psf', 'forced_y_psf', 'forced_x_psf_err', 'forced_y_psf_err', 'forced_is_extended',
-                                    'forced_fluxfrac_radius_50', 'forced_ra_psf', 'forced_dec_psf', 'forced_ra_psf_err', 'forced_dec_psf_err',
-                                    'forced_sharpness', 'forced_roundness1', 'forced_kron_abmag',
-                                    'forced_kron_abmag_err', 'forced_warning_flags', 'forced_psf_flags', 'forced_psf_gof', 'image_flags']
-            cols_to_remove = forced_cols_to_remove + extra_cols_to_remove
-            #pdb.set_trace()
-            for item in cols_to_remove:
-                if item in forced_cat.colnames:
-                    forced_cat.remove_column(item)
-            cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-            cols_to_remove = forced_cols_to_remove
-            for item in cols_to_remove:
-                if item in cat.colnames:
-                    cat.remove_column(item)
- 
-        log.info("Creating source catalog")
+        cat = catobj.catalog
 
         if not self.forced_segmentation:
             self._save_detection_image(segmentation_model, catobj)
@@ -450,10 +348,9 @@ class SourceCatalogStep(RomanStep):
                 fit_psf=self.fit_psf,
                 psf_model=psf_model,
                 mask=mask,
-                cat_type="forced_det",
+                cat_type="forced_full",
                 ee_spline=ee_spline,
             )
-            forced_cat = forced_catobj.catalog
 
             # We have two catalogs, both using the same segmentation
             # image. We want:
@@ -482,72 +379,8 @@ class SourceCatalogStep(RomanStep):
             forced_cat.meta = None  # redundant with cat.meta
             cat = join(forced_cat, cat, keys="label", join_type="outer")
 
-        if self.forced_photometry:
-            forced_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_full",
-                ee_spline=ee_spline,
-            )
-
-            # We have two catalogs, both using the same segmentation
-            # image. We want:
-            # - the original shape parameters computed from
-            #   the forced detection image.  These are needed to
-            #   describe where we have computed the forced photometry.
-            #   These keep their original names to match up with the deep
-            #   catalog used for forcing.
-            # - the newly measured fluxes and flags and sharpness
-            #   / roundness from the direct image; these give the new fluxes
-            #   at these locations
-            #   These gain a forced_ prefix.
-            # - the shapes measured from the new detection image.  These
-            #   seem to me to have less value but are explicitly called out in
-            #   a requirement, and it's not crazy to compute new centroids and
-            #   moments.
-            #   These gain a forced_prefix.
-            # At the end of the day you get a whole new catalog with the forced_
-            # prefix, plus some shape parameters that duplicate values in the
-            # original catalog used for forcing.
-
-            # merge the two forced catalogs
-            forced_cat = forced_catobj.catalog
-            forced_cat.meta = None  # redundant with cat.meta
-            cat = join(forced_cat, cat, keys="label", join_type="outer")
-
-            # reset the model to fit the psf  parameters
-            self.forced_photometry = ''
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
-            log.info("Creating floating source catalog")
-            floating_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_full",
-                ee_spline=ee_spline,
-            )
-            floating_cat = floating_catobj.catalog
-            forced_cat.meta = None  # redundant with cat.meta
-            cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
-
         # Put the resulting catalog table in the catalog model
-        if cat_type == "prompt" :
-            cat_model.source_catalog = prompt_cat
-        elif "forced" in cat_type:
-            cat_model.source_catalog = cat
+        cat_model.source_catalog = cat
 
         # Set the data and detection image
         segmentation_model.data = segment_img.data.astype(np.uint32)
@@ -562,13 +395,13 @@ class SourceCatalogStep(RomanStep):
 
     def _make_catalog_and_segmentation_models(self, model):
         if isinstance(model, ImageModel):
-            if (self.forced_segmentation or self.forced_photometry):
+            if self.forced_segmentation:
                 cat_model_cls = datamodels.ForcedImageSourceCatalogModel
             else:
                 cat_model_cls = datamodels.ImageSourceCatalogModel
             segmentation_model_cls = datamodels.SegmentationMapModel
         else:
-            if (self.forced_segmentation or self.forece_photometry):
+            if self.forced_segmentation:
                 cat_model_cls = datamodels.ForcedMosaicSourceCatalogModel
             else:
                 cat_model_cls = datamodels.MosaicSourceCatalogModel
@@ -584,7 +417,7 @@ class SourceCatalogStep(RomanStep):
             cat_model.meta.data_release_id = model.meta.data_release_id
 
         # make L3 metadata
-        if (self.forced_segmentation or self.forced_photometry):
+        if self.forced_segmentation:
             cat_model.meta.image.forced_segmentation = self.forced_segmentation
 
         segmentation_model = segmentation_model_cls.create_minimal(
