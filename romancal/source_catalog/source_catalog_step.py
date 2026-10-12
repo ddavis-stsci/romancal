@@ -156,6 +156,7 @@ class SourceCatalogStep(RomanStep):
         # empty/failed segmentation product, or a hand-built map.
         try:
             detection_image = forced_segmodel.detection_image
+            #pdb.set_trace()
         except AttributeError as err:
             msg = (
                 "forced_segmentation must include a detection_image array. "
@@ -297,7 +298,7 @@ class SourceCatalogStep(RomanStep):
                     mask=mask,
                 )
             else:
-                with datamodels.open(self.forced_segmentation) as forced_segmodel:
+                with datamodels.open(self.forced_segmentation, lazy_tree=False) as forced_segmodel:
                     # forced_segmodel.data is asdf.tags.core.ndarray.NDArrayType
                     forced_segimg = forced_segmodel.data[...]
                     forced_detection_image = self._read_forced_detection_image(
@@ -468,7 +469,7 @@ class SourceCatalogStep(RomanStep):
             forced_cat = forced_catobj.catalog
 
             if not self.forced_segmentation:
-                self._save_detection_image(segmentation_model, catobj)
+                self._save_detection_image(segmentation_model, forced_catobj)
             else:
                 # TODO: improve this so that the moment-based properties are
                 # not recomputed from the forced_detection_image
@@ -514,20 +515,22 @@ class SourceCatalogStep(RomanStep):
             cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
 
         # Put the resulting catalog table in the catalog model
+        #pdb.set_trace()
         if cat_type == "prompt" :
             cat_model.source_catalog = prompt_cat
         elif "forced" in cat_type:
             cat_model.source_catalog = cat
 
-        self._save_detection_image(segmentation_model, forced_catobj)
-        forced_cat.meta = None  # redundant with cat.meta
-        cat = join(forced_cat, cat, keys="label", join_type="outer")
+        #self._save_detection_image(segmentation_model, forced_catobj)
+        #forced_cat.meta = None  # redundant with cat.meta
+        #cat = join(forced_cat, cat, keys="label", join_type="outer")
 
         # Put the resulting catalog table in the catalog model
-        cat_model.source_catalog = cat
+        #cat_model.source_catalog = cat
 
         # Set the data and detection image
         segmentation_model.data = segment_img.data.astype(np.uint32)
+        segmentation_model.detection_image = segmentation_model.detection_image[:]
         self._attach_skyvals_if_enabled(input_model, segmentation_model, mask)
         # we update the input_model here to note that source_catalog finished
         # only for ImageModel as L3 doesn't have cal_step.source_catalog
@@ -539,12 +542,12 @@ class SourceCatalogStep(RomanStep):
         return cat_model, segmentation_model
 
     def _make_catalog_and_segmentation_models(self, model):
+        #pdb.set_trace()
         if isinstance(model, ImageModel):
             if self.forced_segmentation:
                 cat_model_cls = datamodels.ForcedImageSourceCatalogModel
             elif self.forced_photometry:
                 cat_model_cls = datamodels.TimeDomainSourceCatalogModel
-                #pdb.set_trace()
             else:
                 cat_model_cls = datamodels.ImageSourceCatalogModel
             segmentation_model_cls = datamodels.SegmentationMapModel
@@ -556,8 +559,8 @@ class SourceCatalogStep(RomanStep):
                 cat_model_cls = datamodels.MosaicSourceCatalogModel
             segmentation_model_cls = datamodels.MosaicSegmentationMapModel
 
-        #pdb.set_trace()
         cat_model = cat_model_cls.create_minimal({"meta": model.meta})
+        #pdb.set_trace()
         cat_model.meta["image"] = {
             "filename": model.meta.filename,
             "file_date": model.meta.file_date,
@@ -568,6 +571,7 @@ class SourceCatalogStep(RomanStep):
 
         # make L3 metadata
         #if (self.forced_segmentation or self.forced_photometry):
+        #pdb.set_trace()
         if self.forced_segmentation:
             cat_model.meta.image.forced_segmentation = self.forced_segmentation
 
@@ -575,6 +579,7 @@ class SourceCatalogStep(RomanStep):
             {"meta": cat_model.meta}
         )
 
+        #pdb.set_trace()
         return cat_model, segmentation_model
 
     def _attach_skyvals_if_enabled(self, input_model, segmentation_model, mask):
