@@ -483,6 +483,9 @@ class SourceCatalogStep(RomanStep):
             # TODO: fill x, y from the input catalog positions and
             # forced_psf_flags/gof from the forced PSF fit.
             nrows = len(cat)
+            #cat["id"] = np.zeros(nrows, dtype=np.int32)
+            #cat["source_catalog_index"]  = np.zeros(nrows, dtype=np.int16)
+            #cat["source_catalog_index"]  = np.full( nrows, np.int16(0))
             cat["x"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
