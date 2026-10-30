@@ -2,7 +2,6 @@
 Module to calculate the source catalog.
 """
 
-import pdb
 import logging
 import re
 from collections.abc import Callable
@@ -183,13 +182,19 @@ class RomanSourceCatalog:
         self.cat_type = cat_type
         self.ee_spline = ee_spline
 
-        self.n_sources = len(segment_img.labels)
+        if hasattr(model, 'src_table'):
+            if len(model.src_table['x_centroid']) != 0:
+                self.n_sources = len(model.src_table['x_centroid'])
+        if self.segment_img:
+            self.n_sources = len(segment_img.labels)
         self.wcs = self.model.meta.wcs
         self.meta = {}
         self.aperture_cat = None
         if cat_type == "forced_photometry":
             self.id = 0
             self.source_catalog_index = np.int16(0)
+            self.x_centroid = model.src_table['x_centroid']
+            self.y_centroid = model.src_table['y_centroid']
 
         # Define flux unit conversion factors
         if "photometry" in self.model.meta:
@@ -206,12 +211,17 @@ class RomanSourceCatalog:
         # Output column schema (depends only on cat_type, fit_psf, and
         # the aperture flux column names — all known at this point).
         # Encapsulated in CatalogSchema for ease of maintenance.
+        if model.is_forced_photometry:
+            fit_flag=self.model.meta.x_0_flag
+        else:
+            fit_flag=True
+            
         self._schema = CatalogSchema(
             cat_type=self.cat_type,
             fit_psf=self.fit_psf,
+            fit_flag=fit_flag,
             aperture_flux_colnames=ApertureCatalog.aperture_flux_colnames_for_radii(),
         )
-        #pdb.set_trace()
 
     def __len__(self):
         return self.n_sources
@@ -245,7 +255,10 @@ class RomanSourceCatalog:
         used.
         """
         if self.detection_cat is None:
-            xycen = (self.x_centroid, self.y_centroid)
+            try:
+                xycen = (self.x_centroid, self.y_centroid)
+            except:
+                xycen = (self.model.x_centroid, self.model.y_centroid)
         else:
             xycen = (self.detection_cat.x_centroid, self.detection_cat.y_centroid)
         return np.transpose(xycen)
@@ -342,16 +355,24 @@ class RomanSourceCatalog:
         """
         The best estimate of the right ascension (ICRS).
         """
-        # FIXME: just return ra_centroid as a placeholder
-        return self.ra_centroid.copy()
+        # FIXME: just return ra_centroid as a placeholder else return
+        # the input catalog ra
+        if not self.model.is_forced_photometry:
+            return self.ra_centroid.copy()
+        else:
+            return self.model.src_table['ra'].copy()
 
     @lazyproperty
     def dec(self):
         """
         The best estimate of the declination (ICRS).
         """
-        # FIXME: just return dec_centroid as a placeholder
-        return self.dec_centroid.copy()
+        # FIXME: just return dec_centroid as a placeholder else return
+        # the input catalog dec
+        if not self.model.is_forced_photometry:
+            return self.dec_centroid.copy()
+        else:
+            return self.model.src_table['dec'].copy()
 
     @lazyproperty
     def is_extended(self):
@@ -640,7 +661,8 @@ class RomanSourceCatalog:
                 label="segment properties",
                 factory=self._make_segment_cat,
                 store_as="segment_cat",
-                condition=lambda: True,
+                condition=lambda: not self.model.is_forced_photometry,
+                #condition=lambda: True,
             ),
             MeasurementStep(
                 label="aperture photometry",
@@ -648,12 +670,12 @@ class RomanSourceCatalog:
                 store_as="aperture_cat",
                 condition=lambda: self.cat_type != "forced_det",
             ),
-            MeasurementStep(
-                label="aperture photometry",
-                factory=self._make_aperture_cat,
-                store_as="aperture_cat",
-                condition=lambda: self.cat_type != "forced_photometry",
-            ),
+            #MeasurementStep(
+            #    label="aperture photometry",
+            #    factory=self._make_aperture_cat,
+            #    store_as="aperture_cat",
+            #    condition=lambda: self.cat_type != "forced_photometry",
+            #),
             MeasurementStep(
                 label="DAOFind properties",
                 factory=self._make_daofind_cat,
@@ -664,7 +686,7 @@ class RomanSourceCatalog:
                 label="nearest neighbor properties",
                 factory=self._make_nn_cat,
                 store_as=None,
-                condition=lambda: any(col.startswith("nn_") for col in cols),
+                condition=lambda: (any(col.startswith("nn_") for col in cols) & (not self.model.is_forced_photometry)),
             ),
             MeasurementStep(
                 label="PSF photometry",
@@ -705,11 +727,11 @@ class RomanSourceCatalog:
         are needed before nearest-neighbor and PSF photometry). Steps
         whose ``condition()`` returns `False` are skipped silently.
         """
-        for step in self._measurement_registry:
-            if not step.condition():
+        for catalog_step in self._measurement_registry:
+            if not catalog_step.condition():
                 continue
-            log.info(f"Calculating {step.label}")
-            self._apply_subcatalog(step.factory(), store_as=step.store_as)
+            log.info(f"Calculating {catalog_step.label}")
+            self._apply_subcatalog(catalog_step.factory(), store_as=catalog_step.store_as)
 
     def update_metadata(self):
         """
@@ -778,7 +800,6 @@ class RomanSourceCatalog:
             `~astropy.units.Quantity`.
         """
         catalog = QTable()
-        #pdb.set_trace()
         for column in self.column_names:
             catalog[column] = getattr(self, column)
             definition = self.cat_model.get_column_definition(column)
@@ -800,6 +821,8 @@ class RomanSourceCatalog:
         # Validate and convert units for all data arrays.
         self._validate_and_convert_units()
 
+        if self.model.is_forced_photometry:
+            self.label = self.model.labels.data
         # Run all enabled measurement steps in registry order.
         self._run_measurements()
 

@@ -289,15 +289,27 @@ class ApertureCatalog:
             annulus = CircularAnnulus(
                 self.xypos_finite[idx], r_in_arcsec / scale, r_out_arcsec / scale
             )
+            if not self.model.is_forced_photometry:
+                stats = ApertureStats(
+                        self.model.data,
+                        annulus,
+                        sigma_clip=sigclip,
+                        segmentation_image=self.segment_img,
+                        mask_method=self.ANNULUS_MASK_METHOD,
+                    )
+                bkg_median[idx] = stats.median
+                bkg_median_err[idx] = stats.median_err
+        else:
             stats = ApertureStats(
                 self.model.data,
                 annulus,
                 sigma_clip=sigclip,
                 segmentation_image=self.segment_img,
-                mask_method=self.ANNULUS_MASK_METHOD,
-            )
+                #mask_method=None,
+              )
             bkg_median[idx] = stats.median
             bkg_median_err[idx] = stats.median_err
+
 
         pixel_area = self._source_pixel_area
         bkg_median = bkg_median / pixel_area
@@ -415,14 +427,22 @@ class ApertureCatalog:
                 CircularAperture(self.xypos_finite[idx], radius / scale)
                 for radius in radii_arcsec
             ]
-            phot = AperturePhotometry(
-                self.model.data,
-                apertures,
-                error=self.model.err,
-                segmentation_image=self.segment_img,
-                labels=self.labels[idx],
-                mask_method=self.APERTURE_MASK_METHOD,
-            )
+            if self.model.is_forced_photometry:
+                phot = AperturePhotometry(
+                    self.model.data,
+                    apertures,
+                    error=self.model.err,
+                    labels=self.labels[idx],
+                )
+            else:
+                phot = AperturePhotometry(
+                    self.model.data,
+                    apertures,
+                    error=self.model.err,
+                    segmentation_image=self.segment_img,
+                    labels=self.labels[idx],
+                    mask_method=self.APERTURE_MASK_METHOD,
+                )
             for i in range(n_radii):
                 values = phot.flux[:, i]
                 if subtract_local_bkg:

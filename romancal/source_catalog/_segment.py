@@ -270,7 +270,6 @@ class SegmentCatalog:
             aperture_mask_method="mask",
             detection_catalog=detection_cat,
         )
-
         self.source_cat = segm_cat
         self.meta.update(segm_cat.meta)
 

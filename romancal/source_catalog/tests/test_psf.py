@@ -358,7 +358,6 @@ def test_create_convolution_kernel(setup_inputs):
     diff_noconv = np.sum(_central_stamp(stamp_f087 - stamp_f184, sz) ** 2)
     mod_f184_conv = convolve(stamp_f087, conv_kernel)
     diff_conv = np.sum(_central_stamp(mod_f184_conv - stamp_f184, sz) ** 2)
-    print(diff_conv, diff_noconv, diff_conv / diff_noconv)
     # FIXME
     # in my tests diff_conv is 1e-5, diff_noconv is 0.008, and the ratio
     # is 1.5e-3

@@ -7,7 +7,6 @@ to a forced catalog.
 """
 
 from astropy.utils import lazyproperty
-import pdb
 
 class CatalogSchema:
     """
@@ -29,9 +28,10 @@ class CatalogSchema:
         column list.
     """
 
-    def __init__(self, cat_type, fit_psf, aperture_flux_colnames):
+    def __init__(self, cat_type, fit_psf, fit_flag, aperture_flux_colnames):
         self.cat_type = cat_type
         self.fit_psf = bool(fit_psf)
+        self.fit_flag = fit_flag
         self._aperture_flux_colnames = list(aperture_flux_colnames)
 
     @lazyproperty
@@ -62,7 +62,6 @@ class CatalogSchema:
         """
         An ordered list of the flux column names.
         """
-        #pdb.set_trace()
         other_colnames = [
             "segment_flux",
             "segment_flux_err",
@@ -85,7 +84,6 @@ class CatalogSchema:
             "kron_flux_err",
         ]
 
-        #pdb.set_trace()
         if self.cat_type in ("prompt", "forced_full", "dr_band"):
             flux_colnames = list(self.aper_colnames)
             if self.fit_psf:
@@ -100,13 +98,6 @@ class CatalogSchema:
         elif self.cat_type in ("dr_det", "forced_det", "forced_photometry"):
             flux_colnames = []
 
-        #elif self.cat_type =="forced_photometry":
-        #    pdb.set_trace()
-        #    flux_colnames = self.aper_colnames
-        #    if self.fit_psf:
-        #        flux_colnames.extend(psf_colnames)
-        #    flux_colnames.extend(other_colnames)
-            
         else:
             raise ValueError(f"Unknown catalog type: {self.cat_type}")
 
@@ -257,7 +248,6 @@ class CatalogSchema:
 
         #elif self.cat_type in ("forced_det", "forced_photometry"):
         elif self.cat_type in ("forced_det"):
-            #pdb.set_trace()
             colnames = ["label"]  # needed to join the forced catalogs
             colnames.extend(base_colnames)
             colnames.extend(skybest_colnames)
@@ -267,18 +257,20 @@ class CatalogSchema:
 
 
         elif self.cat_type in ("forced_photometry"):
-            #pdb.set_trace()
-            #psf_colnames = ["psf_flux", "psf_flux_err"]
             colnames = ["label"]  # needed to join the forced catalogs
             colnames.extend(["id", "source_catalog_index"])
             colnames.extend(base_colnames)
+            colnames.remove("x_centroid")
+            colnames.remove("y_centroid")
+            colnames.remove("x_centroid_err")
+            colnames.remove("y_centroid_err")
             colnames.extend(self.psf_colnames)
             colnames.extend(self.aper_colnames)
             colnames.extend(skybest_colnames)
-            colnames.extend(sky_colnames)
-            colnames.extend(shape_colnames)
-            colnames.extend(nn_colnames)
-
+            colnames.extend(flag_columns)
+            colnames.extend(skypsf_colnames)
+            colnames.extend(xypsf_colnames)
+            colnames.extend(psf_flags_colnames)
         elif self.cat_type == "dr_det":
             colnames = []
             colnames.extend(base_colnames)
@@ -322,10 +314,10 @@ class CatalogSchema:
                 if colname != "label":
                     catalog.rename_column(colname, f"forced_{colname}")
 
-        if self.cat_type == "forced_photometry":
+        if self.cat_type == "forced_photometry" and self.fit_flag:
             for colname in catalog.colnames:
                 #if colname != "label":
-                if colname not in {'label', 'id', 'source_catalog_index'}:
+                if colname not in {'label', 'id', "source_catalog_index"}:
                     catalog.rename_column(colname, f"forced_{colname}")
                     
         # Prefix the band_colnames with "forced_"

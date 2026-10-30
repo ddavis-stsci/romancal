@@ -2,7 +2,6 @@
 Module to calculate PSF photometry.
 """
 
-import pdb
 import logging
 import warnings
 from collections import OrderedDict
@@ -701,7 +700,6 @@ class _PSFCatalog:
 
         # For forced photometry fix the x and y positions of the PSF model to the input values
         if hasattr(self.model.meta, 'x_0_flag'):
-            #pdb.set_trace()
             if self.model.meta.x_0_flag:
                 self.psf_model.x_0.fixed = True
             else:

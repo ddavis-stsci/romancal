@@ -4,14 +4,14 @@ Module for the source catalog step.
 
 from __future__ import annotations
 
-import pdb
 import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
+from astropy import coordinates
 import astropy.units as u
 import numpy as np
-from astropy.table import join, Table
+from astropy.table import join, QTable, Table
 from photutils.segmentation import SegmentationImage
 from roman_datamodels import datamodels
 from roman_datamodels.datamodels import ImageModel
@@ -390,6 +390,8 @@ class SourceCatalogStep(RomanStep):
         is_forced_segmentation = bool(self.forced_segmentation)
         is_forced_photometry = bool(self.forced_photometry)
 
+        model.is_forced_photometry = is_forced_photometry
+
         # check to see if the forced_photometry variable is set if so set the flags so that the
         # psf position and FWHM are fixed
         if is_forced_photometry:
@@ -403,24 +405,44 @@ class SourceCatalogStep(RomanStep):
             except FileNotFoundError:
                 log.info("File not found or cannot be read")
                 exit()
+
+            #if (hasattr(src_table, 'ra') and hasattr(src_table, 'dec')):
+            dtype=[('ra','f8'), ('dec','f8'), ('x_centroid','i4'), ('y_centroid','i4')]
+            input_coord = Table(data = np.zeros(len(src_table), dtype=dtype))
+            if ('ra' in src_table.colnames) and ('dec' in src_table.colnames):
+                for i, entry in enumerate(src_table):
+                    src_pos = coordinates.SkyCoord(entry['ra'] * u.deg, entry['dec'] * u.deg)
+                    if np.any(input_model.meta.wcs.outside_footprint([src_pos])):
+                        xy_pos = input_model.meta.wcs.world_to_pixel(src_pos)
+                        log.debug(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
+                        input_coord[i] = (entry['ra'], entry['dec'], xy_pos[0], xy_pos[1])
+
             if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
                 src_table.x_centroid = src_table['x_centroid']
+                model.x_centroid = src_table['x_centroid'].tolist()
             elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
                 src_table.x_centroid = src_table['x']
+                model.x_centroid = src_table['x']
             else:
                 log.error("A position column, y or y_centroid is needed for processing, stopping")
                 return
 
             if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['y_centroid']
+                src_table.y_centroid = src_table['y_centroid']
+                model.y_centroid = src_table['y_centroid'].tolist()
             elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['y']
+                src_table.y_centroid = src_table['y']
+                model.y_centroid = src_table['y']
             else:
                 log.error("A position column, y or y_centroid is needed for processing, stopping")
                 return
 
-            model.src_table = src_table
-        
+            model.src_table = input_coord
+            #model.xycoords = ((3535, 652), (507, 925))
+            model.xycoords = ( model.x_centroid,  model.y_centroid)
+            model.labels = list(range(0, len(model.x_centroid)))
+            
+
         log.info("Creating source catalog")
         cat_type = "forced_det" if is_forced_segmentation else "prompt"
         fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
@@ -433,30 +455,34 @@ class SourceCatalogStep(RomanStep):
         else:
             input_detection_image  = detection_image
             
-        prompt_catobj = RomanSourceCatalog(
-            model,
-            cat_model,
-            segment_img,
-            input_detection_image,
-            self.kernel_fwhm,
-            fit_psf=fit_psf,
-            psf_model=psf_model,
-            mask=mask,
-            cat_type=cat_type,
-            ee_spline=ee_spline,
-        )
-        prompt_cat = prompt_catobj.catalog
-        detection_image_catobj = prompt_catobj
+        if not is_forced_photometry or is_forced_segmentation:
+            prompt_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                input_detection_image,
+                self.kernel_fwhm,
+                fit_psf=fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type=cat_type,
+                ee_spline=ee_spline,
+            )
+            prompt_cat = prompt_catobj.catalog
+            detection_image_catobj = prompt_catobj
 
         # Forced psf catalog
         # check to see if the forced_photometry variable is set if so set the flags so that the
         # psf position and FWHM are fixed
         if is_forced_photometry:
+            input_detection_image  = None
+            segment_img = None
+            cat_type= "forced_photometry"
             cat_type = 'forced_photometry'
             model.meta.x_0_flag = False
             model.meta.y_0_flag = False
             model.meta.fwhm_flag = False
-
+        
             log.info("Creating forced postion source catalog")
             fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
             log.info(f"fit_psf={fit_psf}, cat_type={cat_type}")
@@ -473,11 +499,30 @@ class SourceCatalogStep(RomanStep):
                 ee_spline=ee_spline,
             )
 
+            # reset the model to fit the psf  parameters
+            model.meta.x_0_flag = True
+            model.meta.y_0_flag = True
+            model.meta.fwhm_flag = True
+            log.info("Creating floating source catalog")
+            floating_catobj = RomanSourceCatalog(
+                model,
+                cat_model,
+                segment_img,
+                detection_image,
+                self.kernel_fwhm,
+                fit_psf=self.fit_psf,
+                psf_model=psf_model,
+                mask=mask,
+                cat_type="forced_photometry",
+                ee_spline=ee_spline,
+            )
+            floating_cat = floating_catobj.catalog
             # merge the forced photometry and prompt catalogs
             forced_cat = forced_catobj.catalog
             forced_cat.meta = None  # redundant with cat.meta
-            cat = join(forced_cat, prompt_cat, keys="label", join_type="outer")
-
+            floating_cat.remove_columns(["id","source_catalog_index","forced_ra","forced_dec"]) # remove duplicates
+            floating_cat.remove_columns(["forced_image_flags","forced_warning_flags"]) # remove duplicates
+            cat = join(forced_cat, floating_cat, keys="label", join_type="outer")
             # Placeholders for columns required by the time domain catalog
             # schema that are not yet computed.
             # TODO: fill x, y from the input catalog positions and
@@ -490,7 +535,6 @@ class SourceCatalogStep(RomanStep):
             cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
             cat["forced_psf_gof"] = np.full(nrows, np.nan, dtype=np.float32)
-
         if cat_type == "forced_det":
             # TODO: improve this so that the moment-based properties are
             # not recomputed from the forced_detection_image
@@ -545,16 +589,20 @@ class SourceCatalogStep(RomanStep):
         log.info("Saving detection image")
 
         # Set the data and detection image
-        segmentation_model.data = segment_img.data.astype(np.uint32)
-        self._save_detection_image(segmentation_model, detection_image_catobj)
-        self._attach_skyvals_if_enabled(input_model, segmentation_model, mask)
+        if not model.is_forced_photometry:
+            segmentation_model.data = segment_img.data.astype(np.uint32)
+            self._save_detection_image(segmentation_model, detection_image_catobj)
+            self._attach_skyvals_if_enabled(input_model, segmentation_model, mask)
         # we update the input_model here to note that source_catalog finished
         # only for ImageModel as L3 doesn't have cal_step.source_catalog
         # and was not previously recorded
         if isinstance(input_model, datamodels.ImageModel):
             self.finalize_result(input_model, self._reference_files_used)
             input_model.meta.cal_step.source_catalog = "COMPLETE"
-        return cat_model, segmentation_model
+        if not is_forced_photometry:
+            return cat_model, segmentation_model
+        else:
+            return cat_model
 
     def _make_catalog_and_segmentation_models(self, model):
         if isinstance(model, ImageModel):
