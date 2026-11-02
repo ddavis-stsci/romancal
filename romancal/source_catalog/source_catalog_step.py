@@ -4,7 +4,6 @@ Module for the source catalog step.
 
 from __future__ import annotations
 
-import pdb
 import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -415,12 +414,12 @@ class SourceCatalogStep(RomanStep):
                     src_pos = coordinates.SkyCoord(entry['ra'] * u.deg, entry['dec'] * u.deg)
                     if np.any(input_model.meta.wcs.outside_footprint([src_pos])):
                         xy_pos = input_model.meta.wcs.world_to_pixel(src_pos)
-                        log.debug(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
+                        log.info(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
                         input_coord[i] = (entry['ra'], entry['dec'], xy_pos[0], xy_pos[1])
 
             if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-                src_table.x_centroid = src_table['x_centroid']
-                model.x_centroid = src_table['x_centroid'].tolist()
+               src_table.x_centroid = src_table['x_centroid']
+               model.x_centroid = src_table['x_centroid'].tolist()
             elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
                 src_table.x_centroid = src_table['x']
                 model.x_centroid = src_table['x']
@@ -439,9 +438,8 @@ class SourceCatalogStep(RomanStep):
                 return
 
             model.src_table = input_coord
-            model.xycoords = ( model.x_centroid,  model.y_centroid)
+            model.xycoords = ( input_coord['x_centroid'],  input_coord['y_centroid'])
             model.labels = list(range(0, len(model.x_centroid)))
-            
 
         log.info("Creating source catalog")
         cat_type = "forced_det" if is_forced_segmentation else "prompt"
@@ -478,15 +476,14 @@ class SourceCatalogStep(RomanStep):
             input_detection_image  = None
             segment_img = None
             cat_type= "forced_photometry"
-            cat_type = 'forced_photometry'
             model.meta.x_0_flag = False
             model.meta.y_0_flag = False
             model.meta.fwhm_flag = False
         
             log.info("Creating forced postion source catalog")
-            fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
+            #fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
             log.info(f"fit_psf={fit_psf}, cat_type={cat_type}")
-            forced_catobj = RomanSourceCatalog(
+            floating_catobj = RomanSourceCatalog(
                 model,
                 cat_model,
                 segment_img,
@@ -498,13 +495,15 @@ class SourceCatalogStep(RomanStep):
                 cat_type="forced_photometry",
                 ee_spline=ee_spline,
             )
+            floating_cat = floating_catobj.catalog
+            floating_cat.meta = None  # redundant with cat.meta
 
             # reset the model to fit the psf  parameters
             model.meta.x_0_flag = True
             model.meta.y_0_flag = True
             model.meta.fwhm_flag = True
             log.info("Creating floating source catalog")
-            floating_catobj = RomanSourceCatalog(
+            forced_catobj = RomanSourceCatalog(
                 model,
                 cat_model,
                 segment_img,
@@ -516,12 +515,10 @@ class SourceCatalogStep(RomanStep):
                 cat_type="forced_photometry",
                 ee_spline=ee_spline,
             )
-            floating_cat = floating_catobj.catalog
-            # merge the forced photometry and prompt catalogs
             forced_cat = forced_catobj.catalog
-            forced_cat.meta = None  # redundant with cat.meta
-            floating_cat.remove_columns(["id","source_catalog_index","forced_ra","forced_dec"]) # remove duplicates
-            floating_cat.remove_columns(["forced_image_flags","forced_warning_flags"]) # remove duplicates
+            # merge the forced photometry and prompt catalogs
+            forced_cat.remove_columns(["id","source_catalog_index","forced_ra","forced_dec"]) # remove duplicates
+            forced_cat.remove_columns(["forced_image_flags","forced_warning_flags"]) # remove duplicates
             cat = join(forced_cat, floating_cat, keys="label", join_type="outer")
             # Placeholders for columns required by the time domain catalog
             # schema that are not yet computed.
@@ -531,11 +528,11 @@ class SourceCatalogStep(RomanStep):
             cat["x"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
-            cat["forced_psf_gof"] = np.full(nrows, np.nan, dtype=np.float32)
-            if hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-                cat['x'] = src_table['x_centroid']
-                cat['y'] = src_table['y_centroid']
-            #pdb.set_trace()
+            #cat["forced_psf_gof"] = np.full(nrows, np.nan, dtype=np.float32)
+            if input_coord:
+                cat['x'] = input_coord['x_centroid'].astype(np.float32)
+                cat['y'] = input_coord['y_centroid'].astype(np.float32)
+
         if cat_type == "forced_det":
             # TODO: improve this so that the moment-based properties are
             # not recomputed from the forced_detection_image

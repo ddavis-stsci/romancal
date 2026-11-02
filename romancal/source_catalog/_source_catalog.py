@@ -213,9 +213,10 @@ class RomanSourceCatalog:
         # Encapsulated in CatalogSchema for ease of maintenance.
         if model.is_forced_photometry:
             fit_flag=self.model.meta.x_0_flag
+            self.fit_psf = fit_flag
         else:
             fit_flag=True
-            
+
         self._schema = CatalogSchema(
             cat_type=self.cat_type,
             fit_psf=self.fit_psf,

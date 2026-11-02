@@ -701,14 +701,14 @@ class _PSFCatalog:
         # For forced photometry fix the x and y positions of the PSF model to the input values
         if hasattr(self.model.meta, 'x_0_flag'):
             if self.model.meta.x_0_flag:
-                self.psf_model.x_0.fixed = True
-            else:
                 self.psf_model.x_0.fixed = False
+            else:
+                self.psf_model.x_0.fixed = True
                 
             if self.model.meta.y_0_flag:
-                self.psf_model.y_0.fixed = True
-            else:
                 self.psf_model.y_0.fixed = False
+            else:
+                self.psf_model.y_0.fixed = True
 
         psfphot = PSFPhotometry(
         self.psf_model,
