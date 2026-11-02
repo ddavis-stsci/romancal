@@ -670,12 +670,6 @@ class RomanSourceCatalog:
                 store_as="aperture_cat",
                 condition=lambda: self.cat_type != "forced_det",
             ),
-            #MeasurementStep(
-            #    label="aperture photometry",
-            #    factory=self._make_aperture_cat,
-            #    store_as="aperture_cat",
-            #    condition=lambda: self.cat_type != "forced_photometry",
-            #),
             MeasurementStep(
                 label="DAOFind properties",
                 factory=self._make_daofind_cat,

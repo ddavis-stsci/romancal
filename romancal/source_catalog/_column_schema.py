@@ -225,7 +225,6 @@ class CatalogSchema:
         det_colnames.extend(shape_colnames)
         det_colnames.extend(nn_colnames)
 
-        #if self.cat_type in ("prompt", "forced_full", "forced_photometry"):
         if self.cat_type in ("prompt", "forced_full"):
             colnames = []
             colnames.extend(base_colnames)
@@ -246,7 +245,6 @@ class CatalogSchema:
                 colnames.extend(psf_flags_colnames)
             colnames.extend(dust_colnames)
 
-        #elif self.cat_type in ("forced_det", "forced_photometry"):
         elif self.cat_type in ("forced_det"):
             colnames = ["label"]  # needed to join the forced catalogs
             colnames.extend(base_colnames)
