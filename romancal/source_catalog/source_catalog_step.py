@@ -4,6 +4,7 @@ Module for the source catalog step.
 
 from __future__ import annotations
 
+import pdb
 import logging
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -531,6 +532,10 @@ class SourceCatalogStep(RomanStep):
             cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
             cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
             cat["forced_psf_gof"] = np.full(nrows, np.nan, dtype=np.float32)
+            if hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
+                cat['x'] = src_table['x_centroid']
+                cat['y'] = src_table['y_centroid']
+            #pdb.set_trace()
         if cat_type == "forced_det":
             # TODO: improve this so that the moment-based properties are
             # not recomputed from the forced_detection_image

@@ -299,16 +299,15 @@ class ApertureCatalog:
                     )
                 bkg_median[idx] = stats.median
                 bkg_median_err[idx] = stats.median_err
-        else:
-            stats = ApertureStats(
-                self.model.data,
-                annulus,
-                sigma_clip=sigclip,
-                segmentation_image=self.segment_img,
-                #mask_method=None,
-              )
-            bkg_median[idx] = stats.median
-            bkg_median_err[idx] = stats.median_err
+            else:
+                stats = ApertureStats(
+                    self.model.data,
+                    annulus,
+                    sigma_clip=sigclip,
+                    segmentation_image=self.segment_img,
+                  )
+                bkg_median[idx] = stats.median
+                bkg_median_err[idx] = stats.median_err
 
 
         pixel_area = self._source_pixel_area
