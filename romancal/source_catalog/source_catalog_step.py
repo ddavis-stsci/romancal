@@ -414,7 +414,7 @@ class SourceCatalogStep(RomanStep):
                     src_pos = coordinates.SkyCoord(entry['ra'] * u.deg, entry['dec'] * u.deg)
                     if np.any(input_model.meta.wcs.outside_footprint([src_pos])):
                         xy_pos = input_model.meta.wcs.world_to_pixel(src_pos)
-                        log.info(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
+                        log.debug(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
                         input_coord[i] = (entry['ra'], entry['dec'], xy_pos[0], xy_pos[1])
 
             if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
@@ -532,6 +532,8 @@ class SourceCatalogStep(RomanStep):
             if input_coord:
                 cat['x'] = input_coord['x_centroid'].astype(np.float32)
                 cat['y'] = input_coord['y_centroid'].astype(np.float32)
+            if 'label' in src_table.colnames:
+                cat['source_catalog_index'] = src_table['label'].astype(np.int16)
 
         if cat_type == "forced_det":
             # TODO: improve this so that the moment-based properties are
