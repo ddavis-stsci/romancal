@@ -19,6 +19,7 @@ from roman_datamodels.datamodels import (
     MosaicSegmentationMapModel,
     MosaicSourceCatalogModel,
     SegmentationMapModel,
+    TimeDomainSourceCatalogModel,
 )
 
 from romancal.source_catalog._background import RomanBackground
@@ -210,6 +211,57 @@ def test_forced_catalog(image_model, function_jail, ignore_parquet_metadata_path
     compare_model_and_parquet_metadata(
         image_model, output_filename, ignore_parquet_metadata_paths
     )
+
+
+def test_forced_photometry_source_catalog_index(image_model, function_jail):
+    SourceCatalogStep.call(
+        image_model,
+        bkg_boxsize=50,
+        kernel_fwhm=2.0,
+        snr_threshold=5,
+        npixels=10,
+        save_results=True,
+        output_file="source_cat.asdf",
+    )
+
+    src = Table.read("source_cat.parquet")
+    src[["label", "x_centroid", "y_centroid"]].write("src.ecsv")
+
+    result = SourceCatalogStep.call(
+        image_model,
+        bkg_boxsize=50,
+        kernel_fwhm=2.0,
+        snr_threshold=5,
+        npixels=10,
+        save_results=False,
+        forced_photometry="src.ecsv",
+    )
+    assert isinstance(result, TimeDomainSourceCatalogModel)
+
+    cat = result.source_catalog
+    assert "source_catalog_index" in cat.colnames
+    assert "x" in cat.colnames
+    assert "y" in cat.colnames
+    assert_equal(cat["source_catalog_index"], src["label"].astype(np.int16))
+
+
+def test_forced_photometry_requires_position_columns(image_model, function_jail):
+    src = Table()
+    src["label"] = [1, 2]
+    src["ra"] = [0.0, 0.1]
+    src["dec"] = [0.0, 0.1]
+    src.write("bad_src.ecsv")
+
+    with pytest.raises(ValueError, match="requires x or x_centroid column"):
+        SourceCatalogStep.call(
+            image_model,
+            bkg_boxsize=50,
+            kernel_fwhm=2.0,
+            snr_threshold=5,
+            npixels=10,
+            save_results=False,
+            forced_photometry="bad_src.ecsv",
+        )
 
 
 class TestConvolvedDataUnits:

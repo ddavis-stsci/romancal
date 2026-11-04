@@ -265,13 +265,14 @@ class SourceCatalogStep(RomanStep):
             forced_segimg = np.asarray(forced_segmodel.data[...]).copy()
 
             # Remove fully masked segments
-            unmasked_sources = np.unique(forced_segimg * (mask == 0))
-            fully_masked_sources = set(np.unique(forced_segimg)) - set(unmasked_sources)
-            if fully_masked_sources:
-                forced_segimg_mask = np.isin(
-                    forced_segimg, np.array(list(fully_masked_sources))
-                )
-                forced_segimg[forced_segimg_mask] = 0
+            all_labels = np.unique(forced_segimg)
+            unmasked_labels = np.unique(forced_segimg[~mask])
+            fully_masked_labels = np.setdiff1d(
+                all_labels, unmasked_labels, assume_unique=True
+            )
+            fully_masked_labels = fully_masked_labels[fully_masked_labels != 0]
+            if fully_masked_labels.size > 0:
+                forced_segimg[np.isin(forced_segimg, fully_masked_labels)] = 0
 
             # Empty forcing maps (e.g. zero-source prompt catalogs) do not
             # save detection_image. Produce an empty forced catalog instead
@@ -294,15 +295,231 @@ class SourceCatalogStep(RomanStep):
         else:
             yield None
 
+    def _resolve_forced_centroids(self, src_table):
+        if "x_centroid" in src_table.colnames:
+            x_centroid = np.asarray(src_table["x_centroid"], dtype=np.float32)
+        elif "x" in src_table.colnames:
+            x_centroid = np.asarray(src_table["x"], dtype=np.float32)
+            src_table["x_centroid"] = x_centroid
+        else:
+            raise ValueError("forced_photometry requires x or x_centroid column")
+
+        if "y_centroid" in src_table.colnames:
+            y_centroid = np.asarray(src_table["y_centroid"], dtype=np.float32)
+        elif "y" in src_table.colnames:
+            y_centroid = np.asarray(src_table["y"], dtype=np.float32)
+            src_table["y_centroid"] = y_centroid
+        else:
+            raise ValueError("forced_photometry requires y or y_centroid column")
+
+        return x_centroid, y_centroid
+
+    def _build_forced_input_coord(self, input_model, src_table, x_centroid, y_centroid):
+        input_coord = Table()
+        input_coord["ra"] = np.full(len(src_table), np.nan, dtype=np.float64)
+        input_coord["dec"] = np.full(len(src_table), np.nan, dtype=np.float64)
+        input_coord["x_centroid"] = x_centroid.copy()
+        input_coord["y_centroid"] = y_centroid.copy()
+
+        if ("ra" in src_table.colnames) and ("dec" in src_table.colnames):
+            ra = np.asarray(src_table["ra"], dtype=np.float64)
+            dec = np.asarray(src_table["dec"], dtype=np.float64)
+            input_coord["ra"] = ra
+            input_coord["dec"] = dec
+            for i, (ra_i, dec_i) in enumerate(zip(ra, dec, strict=False)):
+                src_pos = coordinates.SkyCoord(ra=ra_i * u.deg, dec=dec_i * u.deg)
+                outside = np.any(input_model.meta.wcs.outside_footprint([src_pos]))
+                if outside:
+                    x_pix, y_pix = input_model.meta.wcs.world_to_pixel(src_pos)
+                    input_coord["x_centroid"][i] = np.float32(x_pix)
+                    input_coord["y_centroid"][i] = np.float32(y_pix)
+
+        return input_coord
+
+    def _prepare_forced_photometry_inputs(self, input_model, model):
+        model.meta.x_0_flag = True
+        model.meta.y_0_flag = True
+        model.meta.fwhm_flag = True
+
+        try:
+            src_table = Table.read(self.forced_photometry)
+        except (FileNotFoundError, OSError) as err:
+            msg = f"Cannot read forced_photometry catalog: {self.forced_photometry}"
+            raise ValueError(msg) from err
+
+        x_centroid, y_centroid = self._resolve_forced_centroids(src_table)
+        input_coord = self._build_forced_input_coord(
+            input_model, src_table, x_centroid, y_centroid
+        )
+
+        model.x_centroid = x_centroid.tolist()
+        model.y_centroid = y_centroid.tolist()
+        model.src_table = input_coord
+        model.xycoords = (input_coord["x_centroid"], input_coord["y_centroid"])
+        model.labels = list(range(0, len(model.x_centroid)))
+
+        return src_table, input_coord
+
+    def _build_forced_photometry_catalog(
+        self,
+        model,
+        cat_model,
+        detection_image,
+        psf_model,
+        mask,
+        ee_spline,
+        input_coord,
+        src_table,
+    ):
+        model.meta.x_0_flag = False
+        model.meta.y_0_flag = False
+        model.meta.fwhm_flag = False
+
+        floating_catobj = RomanSourceCatalog(
+            model,
+            cat_model,
+            None,
+            None,
+            self.kernel_fwhm,
+            fit_psf=self.fit_psf,
+            psf_model=psf_model,
+            mask=mask,
+            cat_type="forced_photometry",
+            ee_spline=ee_spline,
+        )
+        floating_cat = floating_catobj.catalog
+        floating_cat.meta = None
+
+        model.meta.x_0_flag = True
+        model.meta.y_0_flag = True
+        model.meta.fwhm_flag = True
+        forced_catobj = RomanSourceCatalog(
+            model,
+            cat_model,
+            None,
+            detection_image,
+            self.kernel_fwhm,
+            fit_psf=self.fit_psf,
+            psf_model=psf_model,
+            mask=mask,
+            cat_type="forced_photometry",
+            ee_spline=ee_spline,
+        )
+        forced_cat = forced_catobj.catalog
+
+        forced_cat.remove_columns(["id", "source_catalog_index", "forced_ra", "forced_dec"])
+        forced_cat.remove_columns(["forced_image_flags", "forced_warning_flags"])
+        cat = join(forced_cat, floating_cat, keys="label", join_type="outer")
+
+        nrows = len(cat)
+        cat["x"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
+        cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
+        cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
+        if len(input_coord) > 0:
+            cat["x"] = input_coord["x_centroid"].astype(np.float32)
+            cat["y"] = input_coord["y_centroid"].astype(np.float32)
+        if "label" in src_table.colnames:
+            cat["source_catalog_index"] = src_table["label"].astype(np.int16)
+
+        return cat
+
+    def _build_forced_detection_catalog(
+        self,
+        model,
+        cat_model,
+        segment_img,
+        forced_detection_image,
+        detection_image,
+        psf_model,
+        mask,
+        ee_spline,
+    ):
+        forced_catobj = RomanSourceCatalog(
+            model,
+            cat_model,
+            segment_img,
+            forced_detection_image,
+            self.kernel_fwhm,
+            fit_psf=self.fit_psf,
+            psf_model=psf_model,
+            mask=mask,
+            cat_type="forced_det",
+            ee_spline=ee_spline,
+        )
+        forced_cat = forced_catobj.catalog
+
+        model.meta.x_0_flag = False
+        model.meta.y_0_flag = False
+        model.meta.fwhm_flag = False
+        floating_catobj = RomanSourceCatalog(
+            model,
+            cat_model,
+            segment_img,
+            detection_image,
+            self.kernel_fwhm,
+            fit_psf=self.fit_psf,
+            psf_model=psf_model,
+            mask=mask,
+            cat_type="forced_full",
+            ee_spline=ee_spline,
+        )
+        floating_cat = floating_catobj.catalog
+
+        forced_cat.meta = None
+        cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
+        return cat, forced_catobj
+
+    def _build_prompt_catalog(
+        self,
+        model,
+        cat_model,
+        segment_img,
+        detection_image,
+        fit_psf,
+        psf_model,
+        mask,
+        ee_spline,
+    ):
+        prompt_catobj = RomanSourceCatalog(
+            model,
+            cat_model,
+            segment_img,
+            detection_image,
+            self.kernel_fwhm,
+            fit_psf=fit_psf,
+            psf_model=psf_model,
+            mask=mask,
+            cat_type="prompt",
+            ee_spline=ee_spline,
+        )
+        return prompt_catobj.catalog, prompt_catobj
+
+    @staticmethod
+    def _assign_output_catalog(cat_model, cat_type, prompt_cat=None, cat=None):
+        if cat_type == "prompt":
+            cat_model.source_catalog = prompt_cat
+        elif cat_type in ("forced_det", "forced_photometry"):
+            cat_model.source_catalog = cat
+
+    def _populate_segmentation_outputs(
+        self,
+        input_model,
+        segmentation_model,
+        segment_img,
+        detection_image_catobj,
+        mask,
+    ):
+        segmentation_model.data = segment_img.data.astype(np.uint32)
+        self._save_detection_image(segmentation_model, detection_image_catobj)
+        self._attach_skyvals_if_enabled(input_model, segmentation_model, mask)
+
     def process(self, dataset):
         input_model = open_dataset(dataset, update_version=self.update_version)
 
         # Define a boolean mask for pixels to be excluded
-        mask = (
-            ~np.isfinite(input_model.data)
-            | ~np.isfinite(input_model.err)
-            | (input_model.err <= 0)
-        )
+        mask = ~np.isfinite(input_model.data)
+        mask |= ~np.isfinite(input_model.err)
+        mask |= input_model.err <= 0
 
         # Copy the data and error arrays to avoid modifying the input model
         model = copy_model_arrays(input_model)
@@ -316,8 +533,7 @@ class SourceCatalogStep(RomanStep):
                     "DQ array."
                 )
                 raise ValueError(msg)
-            dq_mask = (model.dq & pixel.DO_NOT_USE) != 0
-            mask |= dq_mask
+            mask |= (model.dq & pixel.DO_NOT_USE) != 0
 
         # Initialize the source catalog model, copying the metadata
         # from the input model
@@ -392,207 +608,68 @@ class SourceCatalogStep(RomanStep):
 
         model.is_forced_photometry = is_forced_photometry
 
-        # check to see if the forced_photometry variable is set if so set the flags so that the
-        # psf position and FWHM are fixed
+        src_table = None
+        input_coord = None
         if is_forced_photometry:
-            model.meta.x_0_flag = True
-            model.meta.y_0_flag = True
-            model.meta.fwhm_flag = True
-            # Read the input table and set the x,y position to x_centroid & y_centroid to correspond to
-            # what the later steps expect
-            try:
-                src_table = Table.read(self.forced_photometry)
-            except FileNotFoundError:
-                log.info("File not found or cannot be read")
-                exit()
-
-            #if (hasattr(src_table, 'ra') and hasattr(src_table, 'dec')):
-            dtype=[('ra','f8'), ('dec','f8'), ('x_centroid','i4'), ('y_centroid','i4')]
-            input_coord = Table(data = np.zeros(len(src_table), dtype=dtype))
-            if ('ra' in src_table.colnames) and ('dec' in src_table.colnames):
-                for i, entry in enumerate(src_table):
-                    src_pos = coordinates.SkyCoord(entry['ra'] * u.deg, entry['dec'] * u.deg)
-                    if np.any(input_model.meta.wcs.outside_footprint([src_pos])):
-                        xy_pos = input_model.meta.wcs.world_to_pixel(src_pos)
-                        log.debug(f" coord, {entry['ra'].tolist()}, {entry['dec'].tolist()}, xypos, {xy_pos[0], xy_pos[1]}")
-                        input_coord[i] = (entry['ra'], entry['dec'], xy_pos[0], xy_pos[1])
-
-            if not hasattr(src_table, 'x_centroid') and 'x_centroid' in src_table.colnames:
-               src_table.x_centroid = src_table['x_centroid']
-               model.x_centroid = src_table['x_centroid'].tolist()
-            elif not hasattr(src_table, 'x_centroid') and 'x' in src_table.colnames:
-                src_table.x_centroid = src_table['x']
-                model.x_centroid = src_table['x']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
-            if not hasattr(src_table, 'y_centroid') and 'y_centroid' in src_table.colnames:
-                src_table.y_centroid = src_table['y_centroid']
-                model.y_centroid = src_table['y_centroid'].tolist()
-            elif not hasattr(src_table, 'y_centroid') and 'x' in src_table.colnames:
-                src_table.y_centroid = src_table['y']
-                model.y_centroid = src_table['y']
-            else:
-                log.error("A position column, y or y_centroid is needed for processing, stopping")
-                return
-
-            model.src_table = input_coord
-            model.xycoords = ( input_coord['x_centroid'],  input_coord['y_centroid'])
-            model.labels = list(range(0, len(model.x_centroid)))
+            src_table, input_coord = self._prepare_forced_photometry_inputs(
+                input_model, model
+            )
 
         log.info("Creating source catalog")
         cat_type = "forced_det" if is_forced_segmentation else "prompt"
         fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
+        prompt_cat = None
+        cat = None
+        detection_image_catobj = None
 
-        if hasattr(model, 'src_table'):
-            # for prompt catalog use detection_image for sources
-            input_detection_image = detection_image
-        elif cat_type == "forced_det":
-            input_detection_image  = forced_detection_image
-        else:
-            input_detection_image  = detection_image
-            
-        if not is_forced_photometry or is_forced_segmentation:
-            prompt_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                input_detection_image,
-                self.kernel_fwhm,
-                fit_psf=fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type=cat_type,
-                ee_spline=ee_spline,
-            )
-            prompt_cat = prompt_catobj.catalog
-            detection_image_catobj = prompt_catobj
-
-        # Forced psf catalog
-        # check to see if the forced_photometry variable is set if so set the flags so that the
-        # psf position and FWHM are fixed
-        if is_forced_photometry:
-            input_detection_image  = None
-            segment_img = None
-            cat_type= "forced_photometry"
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
-        
-            log.info("Creating forced postion source catalog")
-            #fit_psf = self.fit_psf and (not is_forced_segmentation)  # skip when forced
-            log.info(f"fit_psf={fit_psf}, cat_type={cat_type}")
-            floating_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
-                None,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_photometry",
-                ee_spline=ee_spline,
-            )
-            floating_cat = floating_catobj.catalog
-            floating_cat.meta = None  # redundant with cat.meta
-
-            # reset the model to fit the psf  parameters
-            model.meta.x_0_flag = True
-            model.meta.y_0_flag = True
-            model.meta.fwhm_flag = True
-            log.info("Creating floating source catalog")
-            forced_catobj = RomanSourceCatalog(
+        if cat_type == "prompt" and (not is_forced_photometry):
+            prompt_cat, detection_image_catobj = self._build_prompt_catalog(
                 model,
                 cat_model,
                 segment_img,
                 detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_photometry",
-                ee_spline=ee_spline,
+                fit_psf,
+                psf_model,
+                mask,
+                ee_spline,
             )
-            forced_cat = forced_catobj.catalog
-            # merge the forced photometry and prompt catalogs
-            forced_cat.remove_columns(["id","source_catalog_index","forced_ra","forced_dec"]) # remove duplicates
-            forced_cat.remove_columns(["forced_image_flags","forced_warning_flags"]) # remove duplicates
-            cat = join(forced_cat, floating_cat, keys="label", join_type="outer")
-            # Placeholders for columns required by the time domain catalog
-            # schema that are not yet computed.
-            # TODO: fill x, y from the input catalog positions and
-            # forced_psf_flags/gof from the forced PSF fit.
-            nrows = len(cat)
-            cat["x"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
-            cat["y"] = np.full(nrows, np.nan, dtype=np.float32) * u.pix
-            cat["forced_psf_flags"] = np.zeros(nrows, dtype=np.int32)
-            #cat["forced_psf_gof"] = np.full(nrows, np.nan, dtype=np.float32)
-            if input_coord:
-                cat['x'] = input_coord['x_centroid'].astype(np.float32)
-                cat['y'] = input_coord['y_centroid'].astype(np.float32)
-            if 'label' in src_table.colnames:
-                cat['source_catalog_index'] = src_table['label'].astype(np.int16)
-
-        if cat_type == "forced_det":
-            # TODO: improve this so that the moment-based properties are
-            # not recomputed from the forced_detection_image
-            #
-            # Forced photometry always needs the detection image that was used
-            # to build the forcing segmentation, so shape parameters match the
-            # deep/forcing catalog. SourceCatalogStep and MultibandCatalogStep
-            # both attach this as an extra array on successful segmentation
-            # products.
-            forced_catobj = RomanSourceCatalog(
+        elif is_forced_photometry:
+            cat_type = "forced_photometry"
+            cat = self._build_forced_photometry_catalog(
+                model,
+                cat_model,
+                detection_image,
+                psf_model,
+                mask,
+                ee_spline,
+                input_coord,
+                src_table,
+            )
+        elif cat_type == "forced_det":
+            cat, detection_image_catobj = self._build_forced_detection_catalog(
                 model,
                 cat_model,
                 segment_img,
                 forced_detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_det",
-                ee_spline=ee_spline,
-            )
-            forced_cat = forced_catobj.catalog
-            detection_image_catobj = forced_catobj
-
-            # reset the model to fit the psf  parameters
-            model.meta.x_0_flag = False
-            model.meta.y_0_flag = False
-            model.meta.fwhm_flag = False
-            log.info("Creating floating source catalog")
-            floating_catobj = RomanSourceCatalog(
-                model,
-                cat_model,
-                segment_img,
                 detection_image,
-                self.kernel_fwhm,
-                fit_psf=self.fit_psf,
-                psf_model=psf_model,
-                mask=mask,
-                cat_type="forced_full",
-                ee_spline=ee_spline,
+                psf_model,
+                mask,
+                ee_spline,
             )
-            floating_cat = floating_catobj.catalog
-            forced_cat.meta = None  # redundant with cat.meta
-            cat = join(floating_cat, forced_cat, keys="label", join_type="outer")
 
-        # Put the resulting catalog table in the catalog model
-        if cat_type == "prompt" :
-            cat_model.source_catalog = prompt_cat
-        elif cat_type in ("forced_det", "forced_photometry"):
-            cat_model.source_catalog = cat
+        self._assign_output_catalog(cat_model, cat_type, prompt_cat=prompt_cat, cat=cat)
 
         log.info("Saving detection image")
 
         # Set the data and detection image
         if not model.is_forced_photometry:
-            segmentation_model.data = segment_img.data.astype(np.uint32)
-            self._save_detection_image(segmentation_model, detection_image_catobj)
-            self._attach_skyvals_if_enabled(input_model, segmentation_model, mask)
+            self._populate_segmentation_outputs(
+                input_model,
+                segmentation_model,
+                segment_img,
+                detection_image_catobj,
+                mask,
+            )
         # we update the input_model here to note that source_catalog finished
         # only for ImageModel as L3 doesn't have cal_step.source_catalog
         # and was not previously recorded
